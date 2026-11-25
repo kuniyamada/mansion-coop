@@ -1,0 +1,1058 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>マンション管理 Co-op 3D (Trystero + Three.js)</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: #1a202c;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      overflow: hidden;
+    }
+    #canvas3d {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    /* ロビー画面 */
+    #lobby {
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      padding: 24px;
+      background: rgba(18, 24, 38, 0.94);
+    }
+    #lobby h1 {
+      margin: 0;
+      font-size: 22px;
+      letter-spacing: 0.04em;
+    }
+    #lobby p {
+      margin: 0;
+      font-size: 13px;
+      color: #cbd5e1;
+      text-align: center;
+      max-width: 380px;
+      line-height: 1.5;
+    }
+    .room-box {
+      display: flex;
+      gap: 8px;
+      width: 100%;
+      max-width: 340px;
+    }
+    #roomInput {
+      flex: 1;
+      padding: 12px 14px;
+      font-size: 16px;
+      border-radius: 10px;
+      border: 2px solid #3b82f6;
+      background: #0f172a;
+      color: #fff;
+      outline: none;
+    }
+    #startBtn {
+      padding: 12px 20px;
+      font-size: 15px;
+      font-weight: 800;
+      border: none;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #22c55e, #16a34a);
+      color: #fff;
+      cursor: pointer;
+    }
+    #startBtn:active { transform: scale(0.96); }
+    #connNote { font-size: 12px; color: #93c5fd; }
+
+    /* ゲーム画面HUD（動画イメージ準拠） */
+    #hudTop {
+      position: fixed;
+      top: 10px;
+      left: 12px;
+      right: 12px;
+      z-index: 10;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      pointer-events: none;
+    }
+    .score-panel {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(15, 23, 42, 0.78);
+      padding: 6px 14px;
+      border-radius: 999px;
+      border: 2px solid rgba(255,255,255,0.25);
+    }
+    .avatar-circle {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: #3b82f6;
+      border: 2px solid #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      font-size: 12px;
+    }
+    .score-text { font-size: 15px; font-weight: 900; }
+    .stars { color: #facc15; font-size: 13px; letter-spacing: 2px; }
+
+    /* 中央タスクカードリスト */
+    #taskListPanel {
+      background: rgba(248, 250, 252, 0.92);
+      color: #1e293b;
+      border-radius: 12px;
+      padding: 6px 10px;
+      min-width: 190px;
+      max-width: 240px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+      border: 2px solid #cbd5e1;
+    }
+    .task-header {
+      font-size: 10px;
+      font-weight: 900;
+      text-align: center;
+      color: #475569;
+      margin-bottom: 4px;
+      letter-spacing: 0.05em;
+    }
+    .task-card {
+      background: #fff;
+      border-radius: 7px;
+      padding: 4px 7px;
+      margin-bottom: 4px;
+      border-left: 4px solid #3b82f6;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .task-card.urgent { border-left-color: #ef4444; background: #fef2f2; }
+    .task-title {
+      font-size: 11px;
+      font-weight: 800;
+      display: flex;
+      justify-content: space-between;
+    }
+    .task-bar-bg {
+      height: 5px;
+      background: #e2e8f0;
+      border-radius: 99px;
+      margin-top: 3px;
+      overflow: hidden;
+    }
+    .task-bar-fill {
+      height: 100%;
+      background: #22c55e;
+      transition: width 0.1s linear;
+    }
+
+    /* 右上タイマー＆通信バッジ */
+    .right-hud {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+    }
+    .timer-box {
+      background: rgba(15, 23, 42, 0.78);
+      padding: 6px 14px;
+      border-radius: 999px;
+      border: 2px solid rgba(255,255,255,0.25);
+      font-size: 17px;
+      font-weight: 900;
+    }
+    #peerStatus {
+      font-size: 11px;
+      font-weight: 700;
+      background: rgba(37, 99, 235, 0.85);
+      padding: 2px 10px;
+      border-radius: 999px;
+    }
+
+    /* スマホ操作UI（動画レイアウト準拠） */
+    #stickZone {
+      position: fixed;
+      left: 22px;
+      bottom: 22px;
+      width: 126px;
+      height: 126px;
+      z-index: 15;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.16);
+      border: 3px solid rgba(255, 255, 255, 0.35);
+    }
+    #stickKnob {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 50px;
+      height: 50px;
+      margin-left: -25px;
+      margin-top: -25px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.85);
+      box-shadow: 0 3px 10px rgba(0,0,0,0.35);
+      pointer-events: none;
+    }
+    #actionCluster {
+      position: fixed;
+      right: 20px;
+      bottom: 20px;
+      z-index: 15;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 10px;
+    }
+    .sub-btns {
+      display: flex;
+      gap: 10px;
+    }
+    .game-btn {
+      border: 3px solid rgba(255,255,255,0.85);
+      color: #fff;
+      font-weight: 900;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+      box-shadow: 0 5px 14px rgba(0,0,0,0.4);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .game-btn:active { transform: scale(0.92); }
+    #passBtn {
+      width: 68px;
+      height: 44px;
+      border-radius: 14px;
+      background: linear-gradient(180deg, #38bdf8, #0284c7);
+      font-size: 12px;
+    }
+    #dashBtn {
+      width: 78px;
+      height: 44px;
+      border-radius: 14px;
+      background: linear-gradient(180deg, #fbbf24, #d97706);
+      font-size: 13px;
+    }
+    #actionBtn {
+      width: 96px;
+      height: 76px;
+      border-radius: 20px;
+      background: linear-gradient(180deg, #4ade80, #16a34a);
+      font-size: 15px;
+    }
+
+    /* リザルト画面 */
+    #resultOverlay {
+      position: fixed;
+      inset: 0;
+      z-index: 25;
+      background: rgba(15, 23, 42, 0.88);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+    }
+    #resultOverlay h2 { margin: 0; font-size: 28px; }
+    #retryBtn {
+      padding: 12px 26px;
+      font-size: 16px;
+      font-weight: 800;
+      border: none;
+      border-radius: 12px;
+      background: #3b82f6;
+      color: #fff;
+    }
+  </style>
+</head>
+<body>
+  <div id="lobby">
+    <h1>🏢 マンション管理 Co-op 3D</h1>
+    <p>2台のスマホで同じ「合言葉」を入力するとTrysteroでP2P接続！<br>ゴミ回収・水漏れ修理・住民対応・パス投げで高スコアを目指そう。</p>
+    <div class="room-box">
+      <input id="roomInput" type="text" value="sky-mansion" maxlength="24" placeholder="合言葉を入力" />
+      <button id="startBtn">入室する</button>
+    </div>
+    <div id="connNote">※ HTTPS環境（Firebase Hosting / GitHub Pages等）で開いてください</div>
+  </div>
+
+  <div id="hudTop">
+    <div class="score-panel">
+      <div id="myAvatar" class="avatar-circle">1P</div>
+      <div>
+        <div class="score-text">SCORE: <span id="scoreVal">0</span></div>
+        <div id="starVal" class="stars">☆☆☆</div>
+      </div>
+    </div>
+
+    <div id="taskListPanel">
+      <div class="task-header">TASK LIST</div>
+      <div id="taskCards"></div>
+    </div>
+
+    <div class="right-hud">
+      <div class="timer-box">TIME: <span id="timeVal">02:00</span></div>
+      <div id="peerStatus">1人プレイ中（相方待ち）</div>
+    </div>
+  </div>
+
+  <canvas id="canvas3d"></canvas>
+
+  <div id="stickZone"><div id="stickKnob"></div></div>
+  <div id="actionCluster">
+    <div class="sub-btns">
+      <button id="passBtn" class="game-btn">PASS<br><span style="font-size:9px">投げる</span></button>
+      <button id="dashBtn" class="game-btn">DASH</button>
+    </div>
+    <button id="actionBtn" class="game-btn">ACTION<br><span id="actionHint" style="font-size:10px">持つ/修理</span></button>
+  </div>
+
+  <div id="resultOverlay">
+    <h2>業務終了！</h2>
+    <div id="finalScore" style="font-size:22px;font-weight:900;">SCORE: 0</div>
+    <button id="retryBtn">もう一度シフトに入る</button>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'https://esm.run/three@0.160.0';
+    import { joinRoom } from 'https://esm.run/trystero';
+
+    // DOM参照
+    const canvas = document.getElementById('canvas3d');
+    const lobby = document.getElementById('lobby');
+    const roomInput = document.getElementById('roomInput');
+    const startBtn = document.getElementById('startBtn');
+    const scoreVal = document.getElementById('scoreVal');
+    const starVal = document.getElementById('starVal');
+    const timeVal = document.getElementById('timeVal');
+    const taskCards = document.getElementById('taskCards');
+    const peerStatus = document.getElementById('peerStatus');
+    const myAvatar = document.getElementById('myAvatar');
+    const resultOverlay = document.getElementById('resultOverlay');
+    const finalScore = document.getElementById('finalScore');
+    const retryBtn = document.getElementById('retryBtn');
+
+    // --- 1. Three.js 3Dシーン構築（クォータービュー） ---
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x2d3748);
+
+    const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 13.5, 13.5);
+    camera.lookAt(0, 0, 0.5);
+
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+
+    // ライティング
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x475569, 1.0);
+    scene.add(hemiLight);
+
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.1);
+    dirLight.position.set(8, 16, 10);
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.set(1024, 1024);
+    scene.add(dirLight);
+
+    // マンション廊下の床＆カーペット
+    const floorGeo = new THREE.BoxGeometry(18, 0.4, 10);
+    const floorMat = new THREE.MeshStandardMaterial({ color: 0xe2c799 });
+    const floorMesh = new THREE.Mesh(floorGeo, floorMat);
+    floorMesh.position.y = -0.2;
+    floorMesh.receiveShadow = true;
+    scene.add(floorMesh);
+
+    const carpetGeo = new THREE.BoxGeometry(16, 0.05, 3.2);
+    const carpetMat = new THREE.MeshStandardMaterial({ color: 0x334155 });
+    const carpetMesh = new THREE.Mesh(carpetGeo, carpetMat);
+    carpetMesh.position.y = 0.02;
+    carpetMesh.receiveShadow = true;
+    scene.add(carpetMesh);
+
+    // 奥の壁と101〜103号室のドア
+    const backWall = new THREE.Mesh(
+      new THREE.BoxGeometry(18, 2.6, 0.4),
+      new THREE.MeshStandardMaterial({ color: 0xf1f5f9 })
+    );
+    backWall.position.set(0, 1.3, -5.0);
+    backWall.receiveShadow = true;
+    scene.add(backWall);
+
+    const doorPositions = [-4.2, 0.5, 5.2];
+    doorPositions.forEach((dx) => {
+      const door = new THREE.Mesh(
+        new THREE.BoxGeometry(1.4, 2.1, 0.15),
+        new THREE.MeshStandardMaterial({ color: 0x92400e })
+      );
+      door.position.set(dx, 1.05, -4.75);
+      scene.add(door);
+    });
+
+    // 設備オブジェクト（左奥：緑のゴミ箱 / 左手前：青い工具ステーション）
+    const TRASH_POS = new THREE.Vector3(-7.0, 0, -3.2);
+    const trashBinMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(1.4, 1.5, 1.4),
+      new THREE.MeshStandardMaterial({ color: 0x16a34a })
+    );
+    trashBinMesh.position.set(TRASH_POS.x, 0.75, TRASH_POS.z);
+    trashBinMesh.castShadow = true;
+    scene.add(trashBinMesh);
+
+    const TOOL_POS = new THREE.Vector3(-6.8, 0, 2.8);
+    const toolCounterMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(2.0, 1.1, 1.4),
+      new THREE.MeshStandardMaterial({ color: 0x2563eb })
+    );
+    toolCounterMesh.position.set(TOOL_POS.x, 0.55, TOOL_POS.z);
+    toolCounterMesh.castShadow = true;
+    scene.add(toolCounterMesh);
+
+    // キャラクター3Dモデル生成ヘルパー
+    function createJanitorMesh(bodyColor, capColor) {
+      const group = new THREE.Group();
+
+      // 胴体
+      const body = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.42, 0.48, 1.0, 16),
+        new THREE.MeshStandardMaterial({ color: bodyColor })
+      );
+      body.position.y = 0.55;
+      body.castShadow = true;
+      group.add(body);
+
+      // 頭
+      const head = new THREE.Mesh(
+        new THREE.SphereGeometry(0.38, 16, 16),
+        new THREE.MeshStandardMaterial({ color: 0xfed7aa })
+      );
+      head.position.y = 1.3;
+      head.castShadow = true;
+      group.add(head);
+
+      // 帽子
+      const cap = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.39, 0.4, 0.22, 16),
+        new THREE.MeshStandardMaterial({ color: capColor })
+      );
+      cap.position.y = 1.56;
+      group.add(cap);
+
+      // 足元リング
+      const ring = new THREE.Mesh(
+        new THREE.RingGeometry(0.55, 0.7, 24),
+        new THREE.MeshBasicMaterial({ color: bodyColor, side: THREE.DoubleSide })
+      );
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.y = 0.04;
+      group.add(ring);
+
+      // 手持ちゴミ袋（表示切替用）
+      const heldTrash = new THREE.Mesh(
+        new THREE.DodecahedronGeometry(0.42),
+        new THREE.MeshStandardMaterial({ color: 0xeab308 })
+      );
+      heldTrash.position.set(0, 2.0, 0);
+      heldTrash.visible = false;
+      group.add(heldTrash);
+
+      // 手持ちレンチ（表示切替用）
+      const heldTool = new THREE.Mesh(
+        new THREE.BoxGeometry(0.2, 0.65, 0.2),
+        new THREE.MeshStandardMaterial({ color: 0x38bdf8 })
+      );
+      heldTool.position.set(0.55, 1.0, 0.25);
+      heldTool.rotation.z = -0.4;
+      heldTool.visible = false;
+      group.add(heldTool);
+
+      return { group, heldTrash, heldTool };
+    }
+
+    const player1Visual = createJanitorMesh(0x3b82f6, 0x1d4ed8); // 青：タカハシさん
+    const player2Visual = createJanitorMesh(0xf97316, 0xea580c); // オレンジ：ユウタ
+    scene.add(player1Visual.group);
+    scene.add(player2Visual.group);
+    player2Visual.group.visible = false;
+
+    // タスク・飛翔アイテムの3Dメッシュ管理プール
+    const taskMeshes = new Map();
+    const flyingMeshes = new Map();
+
+    // --- 2. ゲーム状態＆Trystero通信 ---
+    const myPeerId = 'p-' + Math.random().toString(36).slice(2, 8);
+    let remotePeerId = null;
+    let isHost = true;
+    let gameActive = false;
+
+    const me = {
+      x: -1.5,
+      z: 0.5,
+      rotY: 0,
+      item: null, // null | 'trash' | 'tool'
+      dashTimer: 0,
+      dashCd: 0
+    };
+
+    const peer = {
+      connected: false,
+      x: 2.0,
+      z: 0.5,
+      targetX: 2.0,
+      targetZ: 0.5,
+      rotY: 0,
+      item: null
+    };
+
+    // ホスト管理ワールドデータ
+    let tasks = []; // { id, type: 'trash'|'leak'|'resident', room, x, z, progress, timer, maxTimer }
+    let flyingItems = []; // { id, item, sx, sz, tx, tz, t }
+    let score = 0;
+    let timeLeft = 120;
+    let spawnAcc = 0;
+
+    let sendState = null;
+    let sendInput = null;
+    let sendWorld = null;
+
+    // --- 3. 入力処理（タッチ＆キーボード） ---
+    const keys = {};
+    const stick = { x: 0, z: 0 };
+    let dashReq = false;
+    let actionJust = false;
+    let actionHold = false;
+    let passReq = false;
+
+    window.addEventListener('keydown', (e) => {
+      const k = e.key.toLowerCase();
+      keys[k] = true;
+      if (k === ' ' || k === 'shift') dashReq = true;
+      if (k === 'e' || k === 'f' || k === 'enter') { actionJust = true; actionHold = true; }
+      if (k === 'q') passReq = true;
+    });
+    window.addEventListener('keyup', (e) => {
+      const k = e.key.toLowerCase();
+      keys[k] = false;
+      if (k === 'e' || k === 'f' || k === 'enter') actionHold = false;
+    });
+
+    // スマホバーチャルスティック
+    const stickZone = document.getElementById('stickZone');
+    const stickKnob = document.getElementById('stickKnob');
+    let touchId = null;
+
+    stickZone.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      const t = e.changedTouches[0];
+      touchId = t.identifier;
+      moveStick(t.clientX, t.clientY);
+    }, { passive: false });
+
+    stickZone.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      for (const t of e.changedTouches) {
+        if (t.identifier === touchId) moveStick(t.clientX, t.clientY);
+      }
+    }, { passive: false });
+
+    const releaseStick = (e) => {
+      for (const t of e.changedTouches) {
+        if (t.identifier === touchId) {
+          touchId = null;
+          stick.x = 0;
+          stick.z = 0;
+          stickKnob.style.transform = 'translate(0px, 0px)';
+        }
+      }
+    };
+    stickZone.addEventListener('touchend', releaseStick);
+    stickZone.addEventListener('touchcancel', releaseStick);
+
+    function moveStick(cx, cy) {
+      const r = stickZone.getBoundingClientRect();
+      let dx = cx - (r.left + r.width / 2);
+      let dy = cy - (r.top + r.height / 2);
+      const maxR = 38;
+      const d = Math.hypot(dx, dy);
+      if (d > maxR) {
+        dx = (dx / d) * maxR;
+        dy = (dy / d) * maxR;
+      }
+      stickKnob.style.transform = `translate(${dx}px, ${dy}px)`;
+      stick.x = dx / maxR;
+      stick.z = dy / maxR;
+    }
+
+    document.getElementById('actionBtn').addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      actionJust = true;
+      actionHold = true;
+    }, { passive: false });
+    document.getElementById('actionBtn').addEventListener('touchend', (e) => {
+      e.preventDefault();
+      actionHold = false;
+    }, { passive: false });
+
+    document.getElementById('dashBtn').addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      dashReq = true;
+    }, { passive: false });
+
+    document.getElementById('passBtn').addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      passReq = true;
+    }, { passive: false });
+
+    // --- 4. ルーム接続＆ゲーム開始 ---
+    startBtn.addEventListener('click', () => {
+      const roomName = roomInput.value.trim() || 'sky-mansion';
+      const room = joinRoom({ appId: 'mansion-coop-3d-v1' }, roomName);
+
+      const [txState, rxState] = room.makeAction('pState');
+      const [txInput, rxInput] = room.makeAction('pInput');
+      const [txWorld, rxWorld] = room.makeAction('wSync');
+
+      sendState = txState;
+      sendInput = txInput;
+      sendWorld = txWorld;
+
+      room.onPeerJoin((id) => {
+        remotePeerId = id;
+        peer.connected = true;
+        player2Visual.group.visible = true;
+        isHost = myPeerId < remotePeerId;
+        myAvatar.textContent = isHost ? '1P' : '2P';
+        myAvatar.style.background = isHost ? '#3b82f6' : '#f97316';
+        peerStatus.textContent = isHost ? '2P接続中 (Host: 1P)' : '2P接続中 (Client: 2P)';
+
+        if (isHost) {
+          broadcastWorld();
+        }
+      });
+
+      room.onPeerLeave(() => {
+        peer.connected = false;
+        player2Visual.group.visible = false;
+        isHost = true;
+        peerStatus.textContent = '相方が退出（1人モード継続）';
+      });
+
+      rxState((data) => {
+        peer.targetX = data.x;
+        peer.targetZ = data.z;
+        peer.rotY = data.rotY;
+        peer.item = data.item;
+        peer.connected = true;
+        player2Visual.group.visible = true;
+      });
+
+      rxInput((ev) => {
+        if (!isHost) return;
+        processPlayerAction(ev.type, ev.x, ev.z, ev.rotY, 'peer');
+      });
+
+      rxWorld((w) => {
+        if (isHost) return;
+        tasks = w.tasks;
+        flyingItems = w.flyingItems;
+        score = w.score;
+        timeLeft = w.timeLeft;
+        me.item = w.clientItem;
+        updateHUD();
+      });
+
+      lobby.style.display = 'none';
+      initShift();
+    });
+
+    retryBtn.addEventListener('click', () => {
+      resultOverlay.style.display = 'none';
+      if (isHost) initShift();
+    });
+
+    function initShift() {
+      score = 0;
+      timeLeft = 120;
+      spawnAcc = 0;
+      me.item = null;
+      peer.item = null;
+      flyingItems = [];
+      tasks = [
+        { id: 't1', type: 'trash', room: '101', x: -2.0, z: -2.2, progress: 0, timer: 45, maxTimer: 45 },
+        { id: 't2', type: 'leak', room: '103', x: 4.5, z: 1.2, progress: 0, timer: 45, maxTimer: 45 }
+      ];
+      gameActive = true;
+      updateHUD();
+    }
+
+    function spawnNewTask() {
+      if (tasks.length >= 5) return;
+      const types = ['trash', 'leak', 'resident'];
+      const type = types[Math.floor(Math.random() * types.length)];
+      const rooms = ['101', '102', '103'];
+      const room = rooms[Math.floor(Math.random() * rooms.length)];
+      const x = -3.5 + Math.random() * 9.5;
+      const z = -2.8 + Math.random() * 5.6;
+
+      tasks.push({
+        id: Math.random().toString(36).slice(2, 8),
+        type,
+        room,
+        x,
+        z,
+        progress: 0,
+        timer: 40,
+        maxTimer: 40
+      });
+    }
+
+    // ホスト側アクション判定（拾う・捨てる・修理・なだめる・パス投げ）
+    function processPlayerAction(kind, px, pz, rotY, who) {
+      const actor = who === 'host' ? me : peer;
+
+      if (kind === 'pass') {
+        if (!actor.item) return;
+        // 相方がいればオートエイムで投げ渡し、いなければ前方へ投げる
+        let tx = px + Math.sin(rotY) * 4.5;
+        let tz = pz + Math.cos(rotY) * 4.5;
+        if (peer.connected) {
+          const other = who === 'host' ? peer : me;
+          if (Math.hypot(other.x - px, other.z - pz) < 11.0) {
+            tx = other.x;
+            tz = other.z;
+          }
+        }
+        flyingItems.push({
+          id: Math.random().toString(36).slice(2, 7),
+          item: actor.item,
+          sx: px,
+          sz: pz,
+          tx,
+          tz,
+          t: 0
+        });
+        actor.item = null;
+        return;
+      }
+
+      if (kind === 'tap') {
+        // ゴミをゴミ箱へ投入
+        if (actor.item === 'trash' && Math.hypot(px - TRASH_POS.x, pz - TRASH_POS.z) < 2.2) {
+          actor.item = null;
+          score += 150;
+          return;
+        }
+        // 工具ステーションでレンチ取得/返却
+        if (Math.hypot(px - TOOL_POS.x, pz - TOOL_POS.z) < 2.3) {
+          actor.item = actor.item === 'tool' ? null : 'tool';
+          return;
+        }
+        // 床のゴミを拾う
+        if (!actor.item) {
+          const tIdx = tasks.findIndex(t => t.type === 'trash' && Math.hypot(px - t.x, pz - t.z) < 1.8);
+          if (tIdx !== -1) {
+            tasks.splice(tIdx, 1);
+            actor.item = 'trash';
+            return;
+          }
+        }
+        // 水漏れ修理 or 住民なだめ（タップ進行）
+        const target = tasks.find(t => (t.type === 'leak' || t.type === 'resident') && Math.hypot(px - t.x, pz - t.z) < 2.0);
+        if (target) {
+          const power = (target.type === 'leak' && actor.item === 'tool') ? 0.35 : 0.22;
+          target.progress += power;
+          if (target.progress >= 1) {
+            tasks = tasks.filter(t => t.id !== target.id);
+            score += target.type === 'leak' ? 250 : 200;
+          }
+        }
+      }
+    }
+
+    function broadcastWorld() {
+      if (sendWorld && isHost) {
+        sendWorld({
+          tasks,
+          flyingItems,
+          score,
+          timeLeft,
+          clientItem: peer.item
+        });
+      }
+    }
+
+    function updateHUD() {
+      scoreVal.textContent = score.toLocaleString();
+      if (score >= 1500) starVal.textContent = '★★★';
+      else if (score >= 800) starVal.textContent = '★★☆';
+      else if (score >= 300) starVal.textContent = '★☆☆';
+      else starVal.textContent = '☆☆☆';
+
+      const sec = Math.max(0, Math.ceil(timeLeft));
+      const m = String(Math.floor(sec / 60)).padStart(2, '0');
+      const s = String(sec % 60).padStart(2, '0');
+      timeVal.textContent = `${m}:${s}`;
+
+      // タスクカード再描画
+      taskCards.innerHTML = tasks.map(t => {
+        const label = t.type === 'leak' ? `🔧 LEAK (${t.room})`
+                    : t.type === 'trash' ? `🗑️ TRASH (${t.room})`
+                    : `😡 CLAIM (${t.room})`;
+        const pct = Math.max(0, Math.min(100, (t.timer / t.maxTimer) * 100));
+        const urgent = pct < 35 ? 'urgent' : '';
+        return `
+          <div class="task-card ${urgent}">
+            <div class="task-title"><span>${label}</span><span>${urgent ? '!' : ''}</span></div>
+            <div class="task-bar-bg"><div class="task-bar-fill" style="width:${pct}%"></div></div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // --- 5. メインループ ---
+    let lastT = performance.now();
+    let netAcc = 0;
+
+    function animate(now) {
+      const dt = Math.min(0.05, (now - lastT) / 1000);
+      lastT = now;
+
+      if (gameActive) {
+        // 移動計算
+        let mx = stick.x;
+        let mz = stick.z;
+        if (keys['w'] || keys['arrowup']) mz -= 1;
+        if (keys['s'] || keys['arrowdown']) mz += 1;
+        if (keys['a'] || keys['arrowleft']) mx -= 1;
+        if (keys['d'] || keys['arrowright']) mx += 1;
+
+        const len = Math.hypot(mx, mz);
+        if (len > 1) { mx /= len; mz /= len; }
+
+        if (me.dashCd > 0) me.dashCd -= dt;
+        if (me.dashTimer > 0) me.dashTimer -= dt;
+        if (dashReq && me.dashCd <= 0) {
+          me.dashTimer = 0.18;
+          me.dashCd = 0.85;
+        }
+        dashReq = false;
+
+        const speed = (me.item === 'trash' ? 3.8 : 5.2) * (me.dashTimer > 0 ? 1.85 : 1.0);
+        if (len > 0.05) {
+          me.x = Math.max(-8.0, Math.min(8.0, me.x + mx * speed * dt));
+          me.z = Math.max(-4.0, Math.min(4.2, me.z + mz * speed * dt));
+          me.rotY = Math.atan2(mx, mz);
+        }
+
+        // アクション＆パス処理
+        if (actionJust) {
+          if (isHost) processPlayerAction('tap', me.x, me.z, me.rotY, 'host');
+          else if (sendInput) sendInput({ type: 'tap', x: me.x, z: me.z, rotY: me.rotY });
+          actionJust = false;
+        }
+        if (passReq) {
+          if (isHost) processPlayerAction('pass', me.x, me.z, me.rotY, 'host');
+          else if (sendInput) sendInput({ type: 'pass', x: me.x, z: me.z, rotY: me.rotY });
+          passReq = false;
+        }
+
+        // ホスト側のワールド進行
+        if (isHost) {
+          timeLeft -= dt;
+          if (timeLeft <= 0) {
+            timeLeft = 0;
+            gameActive = false;
+            finalScore.textContent = `SCORE: ${score.toLocaleString()}`;
+            resultOverlay.style.display = 'flex';
+          }
+
+          // 長押し修理
+          if (actionHold) {
+            const target = tasks.find(t => (t.type === 'leak' || t.type === 'resident') && Math.hypot(me.x - t.x, me.z - t.z) < 2.0);
+            if (target) {
+              target.progress += ((target.type === 'leak' && me.item === 'tool') ? 0.85 : 0.45) * dt;
+              if (target.progress >= 1) {
+                tasks = tasks.filter(t => t.id !== target.id);
+                score += target.type === 'leak' ? 250 : 200;
+              }
+            }
+          }
+
+          // タスクの制限時間減少
+          for (let i = tasks.length - 1; i >= 0; i--) {
+            tasks[i].timer -= dt;
+            if (tasks[i].timer <= 0) {
+              tasks.splice(i, 1);
+              score = Math.max(0, score - 100);
+            }
+          }
+
+          // 投げられたアイテムの軌道とキャッチ判定
+          for (let i = flyingItems.length - 1; i >= 0; i--) {
+            const f = flyingItems[i];
+            f.t += dt * 2.2;
+            if (f.t >= 1) {
+              // 着地点付近にプレイヤーがいれば自動キャッチ
+              if (!me.item && Math.hypot(me.x - f.tx, me.z - f.tz) < 1.6) {
+                me.item = f.item;
+              } else if (peer.connected && !peer.item && Math.hypot(peer.x - f.tx, peer.z - f.tz) < 1.6) {
+                peer.item = f.item;
+              } else if (f.item === 'trash') {
+                // 床に落ちたゴミはタスクに戻る
+                tasks.push({
+                  id: Math.random().toString(36).slice(2, 8),
+                  type: 'trash',
+                  room: '廊下',
+                  x: f.tx,
+                  z: f.tz,
+                  progress: 0,
+                  timer: 35,
+                  maxTimer: 35
+                });
+              }
+              flyingItems.splice(i, 1);
+            }
+          }
+
+          spawnAcc += dt;
+          if (spawnAcc >= 5.0) {
+            spawnAcc = 0;
+            spawnNewTask();
+          }
+
+          updateHUD();
+        }
+
+        // 相手キャラの位置補間（滑らか移動）
+        peer.x += (peer.targetX - peer.x) * 0.28;
+        peer.z += (peer.targetZ - peer.z) * 0.28;
+
+        // ネットワーク同期送信（30fps）
+        netAcc += dt;
+        if (netAcc >= 0.033) {
+          netAcc = 0;
+          if (sendState) {
+            sendState({ x: me.x, z: me.z, rotY: me.rotY, item: me.item });
+          }
+          if (isHost) broadcastWorld();
+        }
+      }
+
+      sync3DVisuals();
+      renderer.render(scene, camera);
+      requestAnimationFrame(animate);
+    }
+
+    // --- 6. 3Dモデルの座標・表示同期 ---
+    function sync3DVisuals() {
+      const p1Data = isHost ? me : peer;
+      const p2Data = isHost ? peer : me;
+
+      player1Visual.group.position.set(p1Data.x, 0, p1Data.z);
+      player1Visual.group.rotation.y = p1Data.rotY;
+      player1Visual.heldTrash.visible = p1Data.item === 'trash';
+      player1Visual.heldTool.visible = p1Data.item === 'tool';
+
+      player2Visual.group.position.set(p2Data.x, 0, p2Data.z);
+      player2Visual.group.rotation.y = p2Data.rotY;
+      player2Visual.heldTrash.visible = p2Data.item === 'trash';
+      player2Visual.heldTool.visible = p2Data.item === 'tool';
+
+      // タスクオブジェクトの同期
+      const activeIds = new Set(tasks.map(t => t.id));
+      for (const [id, mesh] of taskMeshes) {
+        if (!activeIds.has(id)) {
+          scene.remove(mesh);
+          taskMeshes.delete(id);
+        }
+      }
+      for (const t of tasks) {
+        let mesh = taskMeshes.get(t.id);
+        if (!mesh) {
+          if (t.type === 'trash') {
+            mesh = new THREE.Mesh(
+              new THREE.DodecahedronGeometry(0.45),
+              new THREE.MeshStandardMaterial({ color: 0xca8a04 })
+            );
+            mesh.position.y = 0.45;
+          } else if (t.type === 'leak') {
+            mesh = new THREE.Mesh(
+              new THREE.CylinderGeometry(0.95, 1.05, 0.08, 24),
+              new THREE.MeshStandardMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.85 })
+            );
+            mesh.position.y = 0.06;
+          } else {
+            // クレーム住民（赤紫のキャラ）
+            mesh = new THREE.Mesh(
+              new THREE.CylinderGeometry(0.4, 0.45, 1.3, 16),
+              new THREE.MeshStandardMaterial({ color: 0xe11d48 })
+            );
+            mesh.position.y = 0.65;
+          }
+          mesh.castShadow = true;
+          scene.add(mesh);
+          taskMeshes.set(t.id, mesh);
+        }
+        mesh.position.x = t.x;
+        mesh.position.z = t.z;
+        if (t.type === 'leak') {
+          const s = Math.max(0.2, 1 - t.progress);
+          mesh.scale.set(s, 1, s);
+        }
+      }
+
+      // 飛翔アイテムの放物線アニメーション
+      const activeFlyIds = new Set(flyingItems.map(f => f.id));
+      for (const [id, mesh] of flyingMeshes) {
+        if (!activeFlyIds.has(id)) {
+          scene.remove(mesh);
+          flyingMeshes.delete(id);
+        }
+      }
+      for (const f of flyingItems) {
+        let mesh = flyingMeshes.get(f.id);
+        if (!mesh) {
+          mesh = new THREE.Mesh(
+            new THREE.SphereGeometry(0.35, 12, 12),
+            new THREE.MeshStandardMaterial({ color: f.item === 'trash' ? 0xfacc15 : 0x38bdf8 })
+          );
+          scene.add(mesh);
+          flyingMeshes.set(f.id, mesh);
+        }
+        const x = f.sx + (f.tx - f.sx) * f.t;
+        const z = f.sz + (f.tz - f.sz) * f.t;
+        const y = 1.2 + Math.sin(f.t * Math.PI) * 2.4;
+        mesh.position.set(x, y, z);
+      }
+    }
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>
