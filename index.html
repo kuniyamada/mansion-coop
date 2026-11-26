@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>マンション管理 Co-op 3D (Trystero + Three.js)</title>
+  <title>マンション管理 Co-op 3D</title>
   <style>
     * {
       box-sizing: border-box;
@@ -17,15 +17,83 @@
       padding: 0;
       width: 100%;
       height: 100%;
-      background: #1a202c;
+      background: radial-gradient(circle at 50% 42%, #7d8da6 0%, #5b687f 55%, #3c4657 100%);
       color: #fff;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       overflow: hidden;
     }
     #canvas3d {
       display: block;
       width: 100vw;
       height: 100vh;
+    }
+
+    /* 3D頭上フローティングラベル層 */
+    #worldLabels {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 8;
+      overflow: hidden;
+    }
+    .w-badge {
+      position: absolute;
+      transform: translate(-50%, -100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      will-change: transform;
+    }
+    .p-pill {
+      padding: 1px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 900;
+      color: #fff;
+      border: 2px solid #0f172a;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.35);
+      line-height: 1.25;
+      letter-spacing: 0.03em;
+    }
+    .p-pill.p1 { background: linear-gradient(180deg, #60a5fa, #2563eb); }
+    .p-pill.p2 { background: linear-gradient(180deg, #fb923c, #ea580c); }
+
+    .t-label {
+      font-size: 10px;
+      font-weight: 900;
+      color: #fff;
+      text-shadow: -1px -1px 0 #0f172a, 1px -1px 0 #0f172a, -1px 1px 0 #0f172a, 1px 1px 0 #0f172a, 0 2px 3px rgba(0,0,0,0.5);
+      white-space: nowrap;
+      letter-spacing: 0.04em;
+    }
+    .t-bar-wrap {
+      width: 68px;
+      height: 8px;
+      background: #1e293b;
+      border: 2px solid #0f172a;
+      border-radius: 999px;
+      overflow: hidden;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.35);
+    }
+    .t-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #38bdf8, #7dd3fc);
+      border-radius: 999px;
+    }
+    .t-bar-fill.claim {
+      background: linear-gradient(90deg, #fb7185, #f43f5e);
+    }
+    .delivery-pill {
+      background: #f59e0b;
+      color: #fff;
+      border: 2px solid #0f172a;
+      border-radius: 8px;
+      padding: 1px 6px;
+      font-size: 10px;
+      font-weight: 900;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.35);
     }
 
     /* ロビー画面 */
@@ -39,34 +107,49 @@
       justify-content: center;
       gap: 12px;
       padding: 24px;
-      background: rgba(15, 23, 42, 0.94);
+      background: rgba(15, 23, 42, 0.86);
+      backdrop-filter: blur(6px);
+    }
+    .lobby-card {
+      width: 100%;
+      max-width: 400px;
+      background: rgba(30, 41, 59, 0.94);
+      border: 3px solid rgba(255, 255, 255, 0.2);
+      border-radius: 22px;
+      padding: 22px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 18px 42px rgba(0, 0, 0, 0.5);
     }
     #lobby h1 {
       margin: 0;
       font-size: 22px;
+      font-weight: 900;
       letter-spacing: 0.04em;
       text-align: center;
+      text-shadow: 0 2px 0 #0f172a;
     }
     #lobby p {
       margin: 0;
-      font-size: 13px;
+      font-size: 12.5px;
       color: #cbd5e1;
       text-align: center;
-      max-width: 380px;
       line-height: 1.5;
     }
     .room-box {
       display: flex;
       gap: 8px;
       width: 100%;
-      max-width: 360px;
     }
     #roomInput {
       flex: 1;
-      padding: 12px 14px;
+      padding: 11px 14px;
       font-size: 16px;
-      border-radius: 10px;
-      border: 2px solid #3b82f6;
+      font-weight: 700;
+      border-radius: 12px;
+      border: 2px solid #38bdf8;
       background: #0f172a;
       color: #fff;
       outline: none;
@@ -75,21 +158,19 @@
       touch-action: auto;
     }
     #startBtn {
-      padding: 12px 18px;
+      padding: 11px 18px;
       font-size: 15px;
-      font-weight: 800;
-      border: none;
-      border-radius: 10px;
-      background: linear-gradient(135deg, #22c55e, #16a34a);
+      font-weight: 900;
+      border: 2px solid #fff;
+      border-radius: 12px;
+      background: linear-gradient(180deg, #4ade80, #16a34a);
       color: #fff;
       cursor: pointer;
       white-space: nowrap;
+      box-shadow: 0 4px 0 #15803d;
     }
-    #startBtn:disabled {
-      opacity: 0.6;
-      cursor: wait;
-    }
-    #startBtn:active { transform: scale(0.96); }
+    #startBtn:disabled { opacity: 0.6; cursor: wait; }
+    #startBtn:active { transform: translateY(2px); box-shadow: 0 2px 0 #15803d; }
 
     .lobby-options {
       display: flex;
@@ -97,7 +178,6 @@
       justify-content: space-between;
       gap: 8px;
       width: 100%;
-      max-width: 360px;
       font-size: 12px;
       color: #cbd5e1;
     }
@@ -111,178 +191,251 @@
       touch-action: auto;
     }
     #soloBtn {
-      padding: 8px 14px;
+      padding: 7px 13px;
       font-size: 12px;
-      font-weight: 700;
-      border-radius: 8px;
-      border: 1px solid #64748b;
-      background: rgba(51, 65, 85, 0.7);
-      color: #e2e8f0;
+      font-weight: 800;
+      border-radius: 10px;
+      border: 1.5px solid #94a3b8;
+      background: rgba(51, 65, 85, 0.85);
+      color: #f8fafc;
       cursor: pointer;
     }
     #connNote {
-      font-size: 12px;
+      font-size: 11.5px;
       color: #93c5fd;
       text-align: center;
-      max-width: 360px;
       min-height: 18px;
     }
-    #connNote.error {
-      color: #fca5a5;
-    }
+    #connNote.error { color: #fca5a5; }
 
-    /* ゲーム画面HUD */
+    /* ゲーム画面HUD（コンセプト画像準拠） */
     #hudTop {
       position: fixed;
       top: max(10px, env(safe-area-inset-top));
-      left: max(10px, env(safe-area-inset-left));
-      right: max(10px, env(safe-area-inset-right));
-      z-index: 10;
+      left: max(12px, env(safe-area-inset-left));
+      right: max(12px, env(safe-area-inset-right));
+      z-index: 12;
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
       gap: 8px;
       pointer-events: none;
     }
+
+    /* 左上：アバター＆スコア */
     .score-panel {
       display: flex;
       align-items: center;
-      gap: 8px;
-      background: rgba(15, 23, 42, 0.8);
-      padding: 6px 12px;
-      border-radius: 999px;
-      border: 2px solid rgba(255,255,255,0.25);
+      gap: 10px;
       flex-shrink: 0;
     }
     .avatar-circle {
-      width: 32px;
-      height: 32px;
+      width: 52px;
+      height: 52px;
       border-radius: 50%;
-      background: #3b82f6;
-      border: 2px solid #fff;
+      background: linear-gradient(180deg, #e0f2fe, #bae6fd);
+      border: 3px solid #fff;
+      box-shadow: 0 3px 0 rgba(15, 23, 42, 0.45), 0 6px 14px rgba(0, 0, 0, 0.3);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-weight: 900;
-      font-size: 12px;
+      overflow: hidden;
+      flex-shrink: 0;
     }
-    .score-text { font-size: 14px; font-weight: 900; }
-    .stars { color: #facc15; font-size: 12px; letter-spacing: 2px; }
+    .avatar-circle.p2 {
+      background: linear-gradient(180deg, #ffedd5, #fed7aa);
+    }
+    .score-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .score-text {
+      font-size: 19px;
+      font-weight: 900;
+      letter-spacing: 0.02em;
+      color: #fff;
+      text-shadow:
+        -2px -2px 0 #1e293b, 2px -2px 0 #1e293b,
+        -2px  2px 0 #1e293b, 2px  2px 0 #1e293b,
+         0px  3px 4px rgba(0,0,0,0.45);
+      line-height: 1.1;
+    }
+    .stars {
+      font-size: 18px;
+      letter-spacing: 2px;
+      line-height: 1;
+      text-shadow:
+        -1.5px -1.5px 0 #1e293b, 1.5px -1.5px 0 #1e293b,
+        -1.5px  1.5px 0 #1e293b, 1.5px  1.5px 0 #1e293b;
+    }
+    .star-on { color: #fbbf24; }
+    .star-off { color: #475569; }
 
-    /* 中央タスクカードリスト */
+    /* 中央：タスクカードリスト */
     #taskListPanel {
-      background: rgba(248, 250, 252, 0.92);
+      background: rgba(248, 250, 252, 0.95);
       color: #1e293b;
-      border-radius: 12px;
-      padding: 6px 8px;
-      min-width: 155px;
-      max-width: 220px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.35);
-      border: 2px solid #cbd5e1;
+      border-radius: 14px;
+      padding: 6px 8px 8px;
+      min-width: 170px;
+      max-width: 230px;
+      box-shadow: 0 6px 18px rgba(15, 23, 42, 0.38);
+      border: 2.5px solid #cbd5e1;
     }
     .task-header {
-      font-size: 10px;
+      font-size: 11px;
       font-weight: 900;
       text-align: center;
-      color: #475569;
-      margin-bottom: 4px;
-      letter-spacing: 0.05em;
+      color: #334155;
+      margin-bottom: 5px;
+      letter-spacing: 0.08em;
     }
     .task-card {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 7px;
       background: #fff;
-      border-radius: 7px;
-      padding: 4px 7px;
-      margin-bottom: 4px;
-      border-left: 4px solid #3b82f6;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      border-radius: 9px;
+      padding: 5px 7px;
+      margin-bottom: 5px;
+      border: 1.5px solid #e2e8f0;
+      box-shadow: 0 2px 4px rgba(15, 23, 42, 0.08);
     }
     .task-card:last-child { margin-bottom: 0; }
-    .task-card.urgent { border-left-color: #ef4444; background: #fef2f2; }
+    .task-card.urgent {
+      border-color: #f87171;
+      background: #fef2f2;
+    }
+    .task-icon {
+      width: 22px;
+      height: 22px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .task-body {
+      flex: 1;
+      min-width: 0;
+    }
     .task-title {
       font-size: 11px;
-      font-weight: 800;
-      display: flex;
-      justify-content: space-between;
-      gap: 6px;
+      font-weight: 900;
+      color: #1e293b;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .task-bar-bg {
-      height: 5px;
-      background: #e2e8f0;
-      border-radius: 99px;
+      height: 6px;
+      background: #334155;
+      border-radius: 999px;
       margin-top: 3px;
       overflow: hidden;
+      padding: 1px;
     }
     .task-bar-fill {
       height: 100%;
-      background: #22c55e;
+      background: linear-gradient(90deg, #4ade80, #22c55e);
+      border-radius: 999px;
       transition: width 0.1s linear;
     }
     .task-card.urgent .task-bar-fill {
+      background: linear-gradient(90deg, #f87171, #ef4444);
+    }
+    .urgent-dot {
+      position: absolute;
+      top: -6px;
+      right: -6px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
       background: #ef4444;
+      color: #fff;
+      border: 2px solid #fff;
+      font-size: 11px;
+      font-weight: 900;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.35);
     }
 
-    /* 右上タイマー＆通信バッジ */
+    /* 右上：タイマー＆メニュー */
     .right-hud {
       display: flex;
       flex-direction: column;
       align-items: flex-end;
-      gap: 4px;
+      gap: 6px;
       flex-shrink: 0;
     }
-    .timer-box {
-      background: rgba(15, 23, 42, 0.8);
-      padding: 6px 12px;
-      border-radius: 999px;
-      border: 2px solid rgba(255,255,255,0.25);
-      font-size: 15px;
-      font-weight: 900;
-    }
-    .status-row {
+    .timer-row {
       display: flex;
       align-items: center;
-      gap: 4px;
+      gap: 8px;
+    }
+    .timer-box {
+      font-size: 23px;
+      font-weight: 900;
+      color: #fff;
+      letter-spacing: 0.02em;
+      text-shadow:
+        -2px -2px 0 #1e293b, 2px -2px 0 #1e293b,
+        -2px  2px 0 #1e293b, 2px  2px 0 #1e293b,
+         0px  3px 4px rgba(0,0,0,0.45);
+      line-height: 1;
+    }
+    .timer-box.low { color: #fca5a5; }
+    #logToggleBtn {
       pointer-events: auto;
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      border: 2px solid rgba(255,255,255,0.6);
+      background: rgba(71, 85, 105, 0.85);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 900;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 3px 8px rgba(0,0,0,0.3);
     }
     #peerStatus {
-      font-size: 11px;
-      font-weight: 700;
-      background: rgba(37, 99, 235, 0.88);
-      padding: 3px 10px;
-      border-radius: 999px;
-      cursor: pointer;
-    }
-    #peerStatus.connected { background: rgba(22, 163, 74, 0.9); }
-    #peerStatus.offline { background: rgba(100, 116, 139, 0.9); }
-    #peerStatus.error { background: rgba(220, 38, 38, 0.9); }
-    #logToggleBtn {
-      font-size: 10px;
+      pointer-events: auto;
+      font-size: 10.5px;
       font-weight: 800;
-      border: 1px solid rgba(255,255,255,0.4);
-      background: rgba(15, 23, 42, 0.85);
-      color: #e2e8f0;
+      background: rgba(37, 99, 235, 0.88);
+      border: 1.5px solid rgba(255,255,255,0.5);
+      padding: 2px 10px;
       border-radius: 999px;
-      padding: 3px 8px;
       cursor: pointer;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.28);
     }
+    #peerStatus.connected { background: rgba(22, 163, 74, 0.92); }
+    #peerStatus.offline { background: rgba(71, 85, 105, 0.9); }
 
-    /* 接続デバッグパネル */
+    /* デバッグ・メニューパネル */
     #debugPanel {
       position: fixed;
-      top: 84px;
-      right: max(10px, env(safe-area-inset-right));
-      width: min(320px, calc(100vw - 20px));
+      top: 86px;
+      right: max(12px, env(safe-area-inset-right));
+      width: min(320px, calc(100vw - 24px));
       max-height: 45vh;
       z-index: 28;
       display: none;
       flex-direction: column;
       gap: 6px;
       padding: 10px;
-      border-radius: 12px;
-      background: rgba(15, 23, 42, 0.92);
-      border: 1px solid rgba(148, 163, 184, 0.4);
+      border-radius: 14px;
+      background: rgba(15, 23, 42, 0.94);
+      border: 2px solid rgba(148, 163, 184, 0.45);
       font-size: 11px;
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+      box-shadow: 0 10px 28px rgba(0,0,0,0.45);
     }
     #debugPanel.open { display: flex; }
     #debugMeta {
@@ -309,42 +462,56 @@
     }
     .debug-actions button {
       font-size: 11px;
-      padding: 4px 8px;
-      border-radius: 6px;
+      padding: 5px 10px;
+      border-radius: 8px;
       border: 1px solid #475569;
       background: #1e293b;
       color: #fff;
       cursor: pointer;
     }
 
-    /* スマホ操作UI */
+    /* 左下：バーチャルスティック（コンセプト画像準拠） */
     #stickZone {
       position: fixed;
-      left: max(20px, env(safe-area-inset-left));
+      left: max(22px, env(safe-area-inset-left));
       bottom: max(20px, env(safe-area-inset-bottom));
-      width: 126px;
-      height: 126px;
+      width: 132px;
+      height: 132px;
       z-index: 15;
       border-radius: 50%;
-      background: rgba(255, 255, 255, 0.16);
-      border: 3px solid rgba(255, 255, 255, 0.35);
+      background: radial-gradient(circle, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.24) 100%);
+      border: 3px solid rgba(255, 255, 255, 0.48);
+      box-shadow: 0 6px 18px rgba(15, 23, 42, 0.35), inset 0 2px 6px rgba(255,255,255,0.25);
     }
+    .stick-arrow {
+      position: absolute;
+      color: rgba(255, 255, 255, 0.65);
+      font-size: 11px;
+      pointer-events: none;
+    }
+    .stick-arrow.up { top: 8px; left: 50%; transform: translateX(-50%); }
+    .stick-arrow.down { bottom: 8px; left: 50%; transform: translateX(-50%); }
+    .stick-arrow.left { left: 10px; top: 50%; transform: translateY(-50%); }
+    .stick-arrow.right { right: 10px; top: 50%; transform: translateY(-50%); }
     #stickKnob {
       position: absolute;
       left: 50%;
       top: 50%;
-      width: 50px;
-      height: 50px;
-      margin-left: -25px;
-      margin-top: -25px;
+      width: 54px;
+      height: 54px;
+      margin-left: -27px;
+      margin-top: -27px;
       border-radius: 50%;
-      background: rgba(255, 255, 255, 0.85);
-      box-shadow: 0 3px 10px rgba(0,0,0,0.35);
+      background: radial-gradient(circle at 35% 30%, #ffffff 0%, #e2e8f0 70%, #cbd5e1 100%);
+      border: 2px solid rgba(255,255,255,0.95);
+      box-shadow: 0 5px 12px rgba(15, 23, 42, 0.4);
       pointer-events: none;
     }
+
+    /* 右下：ぷっくり光沢ボタン群（コンセプト画像準拠） */
     #actionCluster {
       position: fixed;
-      right: max(18px, env(safe-area-inset-right));
+      right: max(20px, env(safe-area-inset-right));
       bottom: max(18px, env(safe-area-inset-bottom));
       z-index: 15;
       display: flex;
@@ -354,46 +521,71 @@
     }
     .sub-btns {
       display: flex;
+      align-items: center;
       gap: 10px;
     }
     .game-btn {
-      border: 3px solid rgba(255,255,255,0.85);
+      position: relative;
+      border: 3px solid #1e293b;
       color: #fff;
       font-weight: 900;
-      text-shadow: 0 1px 2px rgba(0,0,0,0.5);
-      box-shadow: 0 5px 14px rgba(0,0,0,0.4);
+      text-shadow:
+        -1.5px -1.5px 0 #1e293b, 1.5px -1.5px 0 #1e293b,
+        -1.5px  1.5px 0 #1e293b, 1.5px  1.5px 0 #1e293b;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       cursor: pointer;
       transition: transform 0.06s ease;
+      overflow: hidden;
+    }
+    .game-btn::before {
+      content: "";
+      position: absolute;
+      top: 3px;
+      left: 8%;
+      right: 8%;
+      height: 36%;
+      border-radius: 999px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.52), rgba(255,255,255,0.04));
+      pointer-events: none;
     }
     .game-btn.pressed,
     .game-btn:active {
-      transform: scale(0.92);
-      filter: brightness(1.12);
+      transform: scale(0.93) translateY(2px);
     }
     #passBtn {
-      width: 70px;
-      height: 46px;
-      border-radius: 14px;
+      width: 68px;
+      height: 48px;
+      border-radius: 16px;
       background: linear-gradient(180deg, #38bdf8, #0284c7);
+      box-shadow: 0 5px 0 #075985, 0 8px 16px rgba(0,0,0,0.35);
       font-size: 12px;
+      line-height: 1.1;
     }
     #dashBtn {
-      width: 80px;
-      height: 46px;
-      border-radius: 14px;
-      background: linear-gradient(180deg, #fbbf24, #d97706);
-      font-size: 13px;
+      width: 92px;
+      height: 52px;
+      border-radius: 18px;
+      background: linear-gradient(180deg, #fde047, #f59e0b);
+      box-shadow: 0 5px 0 #b45309, 0 8px 16px rgba(0,0,0,0.35);
+      font-size: 16px;
+      letter-spacing: 0.04em;
     }
     #actionBtn {
-      width: 104px;
-      height: 78px;
-      border-radius: 20px;
+      width: 112px;
+      height: 88px;
+      border-radius: 26px;
       background: linear-gradient(180deg, #4ade80, #16a34a);
-      font-size: 15px;
+      box-shadow: 0 6px 0 #15803d, 0 10px 20px rgba(0,0,0,0.4);
+      font-size: 16px;
+      gap: 2px;
+    }
+    #actionHint {
+      font-size: 10px;
+      opacity: 0.95;
+      line-height: 1;
     }
 
     /* リザルト画面 */
@@ -401,7 +593,8 @@
       position: fixed;
       inset: 0;
       z-index: 25;
-      background: rgba(15, 23, 42, 0.88);
+      background: rgba(15, 23, 42, 0.86);
+      backdrop-filter: blur(5px);
       display: none;
       flex-direction: column;
       align-items: center;
@@ -409,65 +602,83 @@
       gap: 14px;
       padding: 20px;
     }
-    #resultOverlay h2 { margin: 0; font-size: 28px; }
-    #finalStars { font-size: 32px; color: #facc15; letter-spacing: 6px; }
+    #resultOverlay h2 {
+      margin: 0;
+      font-size: 30px;
+      text-shadow: 0 3px 0 #0f172a;
+    }
+    #finalStars { font-size: 38px; color: #fbbf24; letter-spacing: 6px; }
     #retryBtn {
-      padding: 12px 26px;
+      padding: 12px 28px;
       font-size: 16px;
-      font-weight: 800;
-      border: none;
-      border-radius: 12px;
-      background: #3b82f6;
+      font-weight: 900;
+      border: 2.5px solid #fff;
+      border-radius: 14px;
+      background: linear-gradient(180deg, #4ade80, #16a34a);
       color: #fff;
       cursor: pointer;
+      box-shadow: 0 4px 0 #15803d;
     }
     #backLobbyBtn {
       padding: 8px 18px;
       font-size: 13px;
       font-weight: 700;
-      border: 1px solid #64748b;
+      border: 1.5px solid #94a3b8;
       border-radius: 10px;
       background: transparent;
       color: #cbd5e1;
       cursor: pointer;
     }
 
-    @media (max-width: 520px) {
-      .score-panel { padding: 4px 10px; }
-      .score-text { font-size: 12px; }
-      .timer-box { font-size: 13px; padding: 5px 10px; }
-      #taskListPanel { min-width: 130px; max-width: 165px; padding: 4px 6px; }
+    @media (max-width: 560px) {
+      .avatar-circle { width: 42px; height: 42px; }
+      .score-text { font-size: 15px; }
+      .stars { font-size: 14px; }
+      .timer-box { font-size: 18px; }
+      #taskListPanel { min-width: 140px; max-width: 175px; padding: 5px 6px; }
       .task-title { font-size: 10px; }
+      #stickZone { width: 114px; height: 114px; }
+      #actionBtn { width: 98px; height: 78px; }
+      #dashBtn { width: 82px; height: 46px; font-size: 14px; }
     }
   </style>
 </head>
 <body>
   <div id="lobby">
-    <h1>🏢 マンション管理 Co-op 3D</h1>
-    <p>2台のスマホで同じ「合言葉」を入力するとTrysteroでP2P接続！<br>ゴミ回収・水漏れ修理・住民対応・パス投げで高スコアを目指そう。</p>
-    <div class="room-box">
-      <input id="roomInput" type="text" value="sky-mansion" maxlength="24" placeholder="合言葉を入力" />
-      <button id="startBtn">入室する</button>
+    <div class="lobby-card">
+      <h1>🏢 マンション管理 Co-op 3D</h1>
+      <p>2台のスマホで同じ「合言葉」を入力してP2P協力プレイ！<br>ゴミ回収・水漏れ修理・宅配お届け・パス投げで高スコアを目指そう。</p>
+      <div class="room-box">
+        <input id="roomInput" type="text" value="sky-mansion" maxlength="24" placeholder="合言葉を入力" />
+        <button id="startBtn" type="button">入室する</button>
+      </div>
+      <div class="lobby-options">
+        <label for="strategySelect">接続方式:
+          <select id="strategySelect">
+            <option value="nostr">Nostr (標準)</option>
+            <option value="torrent">BitTorrent (代替1)</option>
+            <option value="mqtt">MQTT (代替2)</option>
+          </select>
+        </label>
+        <button id="soloBtn" type="button">1人オフライン</button>
+      </div>
+      <div id="connNote">※ HTTPS環境（GitHub Pages等）で2台同時に開いてください</div>
     </div>
-    <div class="lobby-options">
-      <label for="strategySelect">接続方式:
-        <select id="strategySelect">
-          <option value="nostr">Nostr (標準)</option>
-          <option value="torrent">BitTorrent (代替1)</option>
-          <option value="mqtt">MQTT (代替2)</option>
-        </select>
-      </label>
-      <button id="soloBtn" type="button">1人オフライン</button>
-    </div>
-    <div id="connNote">※ HTTPS環境（GitHub Pages等）で2台同時に開いてください</div>
   </div>
 
   <div id="hudTop">
     <div class="score-panel">
-      <div id="myAvatar" class="avatar-circle">1P</div>
-      <div>
+      <div id="myAvatar" class="avatar-circle">
+        <svg id="avatarSvg" viewBox="0 0 64 64" width="44" height="44">
+          <circle cx="32" cy="28" r="13" fill="#38bdf8" stroke="#0f172a" stroke-width="3"/>
+          <path d="M18 24 C18 14, 46 14, 46 24 Z" fill="#2563eb" stroke="#0f172a" stroke-width="3"/>
+          <path d="M26 23 L52 20 L48 26 L26 26 Z" fill="#1d4ed8" stroke="#0f172a" stroke-width="2.5"/>
+          <path d="M14 58 C14 43, 50 43, 50 58 Z" fill="#3b82f6" stroke="#0f172a" stroke-width="3"/>
+        </svg>
+      </div>
+      <div class="score-info">
         <div class="score-text">SCORE: <span id="scoreVal">0</span></div>
-        <div id="starVal" class="stars">☆☆☆</div>
+        <div id="starVal" class="stars"><span class="star-off">★★★</span></div>
       </div>
     </div>
 
@@ -477,13 +688,15 @@
     </div>
 
     <div class="right-hud">
-      <div class="timer-box">TIME: <span id="timeVal">02:00</span></div>
-      <div class="status-row">
-        <div id="peerStatus" title="タップして接続ログを表示">1人プレイ中（相方待ち）</div>
-        <button id="logToggleBtn" type="button">LOG</button>
+      <div class="timer-row">
+        <div id="timerBox" class="timer-box">TIME: <span id="timeVal">02:00</span></div>
+        <button id="logToggleBtn" type="button" title="メニュー・接続ログ">Ⅱ</button>
       </div>
+      <div id="peerStatus" title="タップして接続ログを表示">1人プレイ中（相方待ち）</div>
     </div>
   </div>
+
+  <div id="worldLabels"></div>
 
   <div id="debugPanel">
     <div id="debugMeta">接続情報: 待機中</div>
@@ -496,19 +709,32 @@
 
   <canvas id="canvas3d"></canvas>
 
-  <div id="stickZone"><div id="stickKnob"></div></div>
+  <div id="stickZone">
+    <span class="stick-arrow up">▲</span>
+    <span class="stick-arrow down">▼</span>
+    <span class="stick-arrow left">◀</span>
+    <span class="stick-arrow right">▶</span>
+    <div id="stickKnob"></div>
+  </div>
+
   <div id="actionCluster">
     <div class="sub-btns">
       <button id="passBtn" class="game-btn" type="button">PASS<br><span style="font-size:9px">投げる</span></button>
       <button id="dashBtn" class="game-btn" type="button">DASH</button>
     </div>
-    <button id="actionBtn" class="game-btn" type="button">ACTION<br><span id="actionHint" style="font-size:10px">持つ/修理</span></button>
+    <button id="actionBtn" class="game-btn" type="button">
+      <svg viewBox="0 0 36 36" width="30" height="30" style="filter:drop-shadow(0 2px 0 #14532d)">
+        <path d="M24.5 7.5a6.5 6.5 0 0 0-8.1 8.1L8.5 23.5a2.6 2.6 0 1 0 3.7 3.7l7.9-7.9a6.5 6.5 0 0 0 8.1-8.1l-3.6 3.6-3.7-3.7 3.6-3.6z" fill="#ffffff" stroke="#1e293b" stroke-width="2.4" stroke-linejoin="round"/>
+      </svg>
+      <span>ACTION</span>
+      <span id="actionHint">持つ/修理</span>
+    </button>
   </div>
 
   <div id="resultOverlay">
     <h2>業務終了！</h2>
     <div id="finalStars">☆☆☆</div>
-    <div id="finalScore" style="font-size:22px;font-weight:900;">SCORE: 0</div>
+    <div id="finalScore" style="font-size:24px;font-weight:900;">SCORE: 0</div>
     <button id="retryBtn" type="button">もう一度シフトに入る</button>
     <button id="backLobbyBtn" type="button">ロビーへ戻る</button>
   </div>
@@ -518,6 +744,7 @@
 
     // DOM参照
     const canvas = document.getElementById('canvas3d');
+    const worldLabels = document.getElementById('worldLabels');
     const lobby = document.getElementById('lobby');
     const roomInput = document.getElementById('roomInput');
     const strategySelect = document.getElementById('strategySelect');
@@ -527,9 +754,11 @@
     const scoreVal = document.getElementById('scoreVal');
     const starVal = document.getElementById('starVal');
     const timeVal = document.getElementById('timeVal');
+    const timerBox = document.getElementById('timerBox');
     const taskCards = document.getElementById('taskCards');
     const peerStatus = document.getElementById('peerStatus');
     const myAvatar = document.getElementById('myAvatar');
+    const avatarSvg = document.getElementById('avatarSvg');
     const actionHint = document.getElementById('actionHint');
     const resultOverlay = document.getElementById('resultOverlay');
     const finalScore = document.getElementById('finalScore');
@@ -547,8 +776,7 @@
 
     const logEntries = [];
     function addLog(msg, level = 'info') {
-      const now = new Date();
-      const ts = now.toTimeString().slice(0, 8);
+      const ts = new Date().toTimeString().slice(0, 8);
       logEntries.push({ ts, msg, level });
       if (logEntries.length > 40) logEntries.shift();
       const div = document.createElement('div');
@@ -561,193 +789,541 @@
     }
 
     function toggleDebug(forceOpen) {
-      if (typeof forceOpen === 'boolean') {
-        debugPanel.classList.toggle('open', forceOpen);
-      } else {
-        debugPanel.classList.toggle('open');
-      }
+      if (typeof forceOpen === 'boolean') debugPanel.classList.toggle('open', forceOpen);
+      else debugPanel.classList.toggle('open');
     }
     logToggleBtn.addEventListener('click', () => toggleDebug());
     peerStatus.addEventListener('click', () => toggleDebug());
     closeDebugBtn.addEventListener('click', () => toggleDebug(false));
 
-    // --- 1. Three.js 3Dシーン構築（クォータービュー） ---
+    // --- テクスチャ動的生成ヘルパー（画像ファイル不要でリッチな表現） ---
+    function createTileTexture() {
+      const c = document.createElement('canvas');
+      c.width = 256;
+      c.height = 256;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#ead4b4';
+      ctx.fillRect(0, 0, 256, 256);
+
+      const step = 64;
+      for (let y = 0; y < 256; y += step) {
+        for (let x = 0; x < 256; x += step) {
+          ctx.fillStyle = ((x / step + y / step) % 2 === 0) ? '#eed9ba' : '#e5cca8';
+          ctx.fillRect(x + 2, y + 2, step - 4, step - 4);
+        }
+      }
+      ctx.strokeStyle = '#c8ae8a';
+      ctx.lineWidth = 3;
+      for (let i = 0; i <= 256; i += step) {
+        ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 256); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(256, i); ctx.stroke();
+      }
+      const tex = new THREE.CanvasTexture(c);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(5.5, 3.2);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+
+    function createCarpetTexture() {
+      const c = document.createElement('canvas');
+      c.width = 128;
+      c.height = 128;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#3d4554';
+      ctx.fillRect(0, 0, 128, 128);
+      ctx.fillStyle = 'rgba(255,255,255,0.03)';
+      for (let y = 0; y < 128; y += 4) {
+        ctx.fillRect(0, y, 128, 1);
+      }
+      const tex = new THREE.CanvasTexture(c);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(8, 2);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+
+    function createLabelTexture(text, bg, fg = '#ffffff', fontSize = 54, w = 256, h = 128) {
+      const c = document.createElement('canvas');
+      c.width = w;
+      c.height = h;
+      const ctx = c.getContext('2d');
+      if (bg) {
+        ctx.fillStyle = bg;
+        ctx.fillRect(0, 0, w, h);
+      }
+      ctx.font = `900 ${fontSize}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = 'rgba(15,23,42,0.45)';
+      ctx.strokeText(text, w / 2, h / 2);
+      ctx.fillStyle = fg;
+      ctx.fillText(text, w / 2, h / 2);
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+
+    function createSparkleTexture() {
+      const c = document.createElement('canvas');
+      c.width = 64;
+      c.height = 64;
+      const ctx = c.getContext('2d');
+      ctx.translate(32, 32);
+      ctx.fillStyle = '#fef08a';
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      for (let i = 0; i < 8; i++) {
+        const r = i % 2 === 0 ? 26 : 8;
+        const a = (i * Math.PI) / 4;
+        if (i === 0) ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+        else ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+
+    // トゥーン黒アウトライン付与ヘルパー
+    const outlineMat = new THREE.MeshBasicMaterial({ color: 0x1e293b, side: THREE.BackSide });
+    function addOutline(mesh, scale = 1.08) {
+      const out = new THREE.Mesh(mesh.geometry, outlineMat);
+      out.scale.setScalar(scale);
+      mesh.add(out);
+      return out;
+    }
+
+    // --- 1. Three.js 3Dシーン構築（斜め45度アイソメトリック風） ---
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x2d3748);
 
-    const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 100);
-    camera.position.set(0, 13.5, 13.5);
-    camera.lookAt(0, 0, 0.5);
+    const camera = new THREE.PerspectiveCamera(32, window.innerWidth / window.innerHeight, 0.1, 120);
+    camera.position.set(-10.2, 14.5, 13.8);
+    camera.lookAt(0.2, 0.2, 0.0);
 
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    // カメラ基準のXZ移動ベクトル（斜め視点でもスティック方向に直感的に動ける）
+    const camFwd = new THREE.Vector3();
+    camera.getWorldDirection(camFwd);
+    camFwd.y = 0;
+    camFwd.normalize();
+    const camRight = new THREE.Vector3().crossVectors(camFwd, new THREE.Vector3(0, 1, 0)).normalize();
+
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x475569, 1.0);
+    // 柔らかいミニチュア風ライティング
+    const hemiLight = new THREE.HemisphereLight(0xfffbeb, 0x64748b, 1.05);
     scene.add(hemiLight);
 
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1.1);
-    dirLight.position.set(8, 16, 10);
+    const dirLight = new THREE.DirectionalLight(0xfff7ed, 1.15);
+    dirLight.position.set(-7, 18, 11);
     dirLight.castShadow = true;
-    dirLight.shadow.mapSize.set(1024, 1024);
+    dirLight.shadow.mapSize.set(2048, 2048);
+    dirLight.shadow.camera.left = -13;
+    dirLight.shadow.camera.right = 13;
+    dirLight.shadow.camera.top = 12;
+    dirLight.shadow.camera.bottom = -12;
+    dirLight.shadow.bias = -0.0008;
     scene.add(dirLight);
 
-    // マンション廊下の床＆カーペット
-    const floorMesh = new THREE.Mesh(
-      new THREE.BoxGeometry(18, 0.4, 10),
-      new THREE.MeshStandardMaterial({ color: 0xe2c799 })
-    );
-    floorMesh.position.y = -0.2;
-    floorMesh.receiveShadow = true;
-    scene.add(floorMesh);
+    const rimLight = new THREE.DirectionalLight(0xbae6fd, 0.35);
+    rimLight.position.set(10, 8, -10);
+    scene.add(rimLight);
 
-    const carpetMesh = new THREE.Mesh(
-      new THREE.BoxGeometry(16, 0.05, 3.2),
-      new THREE.MeshStandardMaterial({ color: 0x334155 })
+    // --- ジオラマ風マンション廊下 ---
+    const tileTex = createTileTexture();
+    const floorBase = new THREE.Mesh(
+      new THREE.BoxGeometry(17.6, 0.65, 9.6),
+      [
+        new THREE.MeshStandardMaterial({ color: 0xc2a885 }),
+        new THREE.MeshStandardMaterial({ color: 0xc2a885 }),
+        new THREE.MeshStandardMaterial({ map: tileTex, roughness: 0.78 }),
+        new THREE.MeshStandardMaterial({ color: 0x9c8467 }),
+        new THREE.MeshStandardMaterial({ color: 0xb59b79 }),
+        new THREE.MeshStandardMaterial({ color: 0xb59b79 })
+      ]
     );
-    carpetMesh.position.y = 0.02;
+    floorBase.position.y = -0.325;
+    floorBase.receiveShadow = true;
+    scene.add(floorBase);
+
+    // ダークグレーの廊下カーペット
+    const carpetMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(15.2, 0.04, 3.0),
+      new THREE.MeshStandardMaterial({ map: createCarpetTexture(), roughness: 0.95 })
+    );
+    carpetMesh.position.set(-0.2, 0.02, 0.0);
     carpetMesh.receiveShadow = true;
     scene.add(carpetMesh);
 
-    // 奥の壁と101〜103号室のドア
-    const backWall = new THREE.Mesh(
-      new THREE.BoxGeometry(18, 2.6, 0.4),
-      new THREE.MeshStandardMaterial({ color: 0xf1f5f9 })
-    );
-    backWall.position.set(0, 1.3, -5.0);
-    backWall.receiveShadow = true;
-    scene.add(backWall);
+    // 白い壁＋巾木（コンセプト画像の凹凸レイアウトを再現）
+    const wallMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.85 });
+    const wallTopMat = new THREE.MeshStandardMaterial({ color: 0xdbe2ea, roughness: 0.9 });
+    const baseboardMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.8 });
 
-    [-4.2, 0.5, 5.2].forEach((dx) => {
-      const door = new THREE.Mesh(
-        new THREE.BoxGeometry(1.4, 2.1, 0.15),
-        new THREE.MeshStandardMaterial({ color: 0x92400e })
+    function addWallSegment(w, h, d, x, z) {
+      const wall = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), [
+        wallMat, wallMat, wallTopMat, wallMat, wallMat, wallMat
+      ]);
+      wall.position.set(x, h / 2, z);
+      wall.castShadow = true;
+      wall.receiveShadow = true;
+      scene.add(wall);
+
+      const trim = new THREE.Mesh(new THREE.BoxGeometry(w + 0.04, 0.16, d + 0.04), baseboardMat);
+      trim.position.set(x, 0.08, z);
+      scene.add(trim);
+    }
+
+    // 左奥の壁（エレベーター口風の凹み付き）
+    addWallSegment(0.45, 2.7, 9.6, -8.8, 0.0);
+    // 奥のメイン壁（101・102側）
+    addWallSegment(12.2, 2.7, 0.45, -2.7, -4.75);
+    // 103号室前のくぼみ用コーナー壁
+    addWallSegment(0.45, 2.7, 2.2, 3.2, -3.7);
+    addWallSegment(5.8, 2.7, 0.45, 6.0, -2.75);
+    // 右端の低いカットアウェイ壁
+    addWallSegment(0.4, 2.0, 7.6, 8.8, 1.0);
+
+    // 101・102・103号室のドア生成（部屋番号＋枠＋ノブ付き）
+    const ROOM_DOORS = {
+      '101': new THREE.Vector3(-4.2, 0, -4.48),
+      '102': new THREE.Vector3(0.6, 0, -4.48),
+      '103': new THREE.Vector3(5.8, 0, -2.48)
+    };
+
+    const doorRings = {};
+    Object.entries(ROOM_DOORS).forEach(([roomNo, pos]) => {
+      const doorGroup = new THREE.Group();
+      doorGroup.position.set(pos.x, 0, pos.z);
+
+      const frame = new THREE.Mesh(
+        new THREE.BoxGeometry(1.66, 2.28, 0.14),
+        new THREE.MeshStandardMaterial({ color: 0x6b442a, roughness: 0.8 })
       );
-      door.position.set(dx, 1.05, -4.75);
-      scene.add(door);
+      frame.position.y = 1.14;
+      doorGroup.add(frame);
+
+      const panel = new THREE.Mesh(
+        new THREE.BoxGeometry(1.42, 2.12, 0.18),
+        new THREE.MeshStandardMaterial({ color: 0x925e3f, roughness: 0.72 })
+      );
+      panel.position.y = 1.06;
+      panel.castShadow = true;
+      doorGroup.add(panel);
+
+      // 部屋番号プレート
+      const numPlane = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.75, 0.36),
+        new THREE.MeshBasicMaterial({ map: createLabelTexture(roomNo, null, '#fff8eb', 64, 160, 80), transparent: true })
+      );
+      numPlane.position.set(0, 1.62, 0.11);
+      doorGroup.add(numPlane);
+
+      // ドアノブ
+      const knob = new THREE.Mesh(
+        new THREE.SphereGeometry(0.085, 12, 12),
+        new THREE.MeshStandardMaterial({ color: 0xfbbf24, metalness: 0.4, roughness: 0.3 })
+      );
+      knob.position.set(0.5, 1.0, 0.14);
+      doorGroup.add(knob);
+
+      // 配達先ハイライトリング（宅配荷物所持時に点灯）
+      const targetRing = new THREE.Mesh(
+        new THREE.RingGeometry(0.8, 1.05, 28),
+        new THREE.MeshBasicMaterial({ color: 0xf59e0b, side: THREE.DoubleSide, transparent: true, opacity: 0.85 })
+      );
+      targetRing.rotation.x = -Math.PI / 2;
+      targetRing.position.set(0, 0.05, 0.95);
+      targetRing.visible = false;
+      doorGroup.add(targetRing);
+      doorRings[roomNo] = targetRing;
+
+      scene.add(doorGroup);
     });
 
-    // 設備オブジェクト（左奥：緑のゴミ箱 / 左手前：青い工具ステーション）
-    const TRASH_POS = new THREE.Vector3(-7.0, 0, -3.2);
-    const trashBinMesh = new THREE.Mesh(
-      new THREE.BoxGeometry(1.4, 1.5, 1.4),
-      new THREE.MeshStandardMaterial({ color: 0x16a34a })
+    // --- 設備プロップ：緑のゴミ箱（TRASH BIN） ---
+    const TRASH_POS = new THREE.Vector3(-6.7, 0, -3.55);
+    const trashBinGroup = new THREE.Group();
+    trashBinGroup.position.copy(TRASH_POS);
+
+    const binBody = new THREE.Mesh(
+      new THREE.BoxGeometry(1.5, 1.35, 1.15),
+      new THREE.MeshStandardMaterial({ color: 0x3b8e4c, roughness: 0.65 })
     );
-    trashBinMesh.position.set(TRASH_POS.x, 0.75, TRASH_POS.z);
-    trashBinMesh.castShadow = true;
-    scene.add(trashBinMesh);
+    binBody.position.y = 0.68;
+    binBody.castShadow = true;
+    binBody.receiveShadow = true;
+    trashBinGroup.add(binBody);
+
+    const binRim = new THREE.Mesh(
+      new THREE.BoxGeometry(1.62, 0.18, 1.26),
+      new THREE.MeshStandardMaterial({ color: 0x2f753e, roughness: 0.6 })
+    );
+    binRim.position.y = 1.4;
+    binRim.castShadow = true;
+    trashBinGroup.add(binRim);
+
+    const binLabel = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.3, 0.58),
+      new THREE.MeshBasicMaterial({ map: createLabelTexture('TRASH BIN', null, '#f0fdf4', 38, 256, 110), transparent: true })
+    );
+    binLabel.position.set(0, 0.78, 0.59);
+    trashBinGroup.add(binLabel);
 
     const trashZoneRing = new THREE.Mesh(
-      new THREE.RingGeometry(1.3, 1.55, 28),
-      new THREE.MeshBasicMaterial({ color: 0x4ade80, side: THREE.DoubleSide, transparent: true, opacity: 0.7 })
+      new THREE.RingGeometry(1.25, 1.5, 28),
+      new THREE.MeshBasicMaterial({ color: 0x4ade80, side: THREE.DoubleSide, transparent: true, opacity: 0.55 })
     );
     trashZoneRing.rotation.x = -Math.PI / 2;
-    trashZoneRing.position.set(TRASH_POS.x, 0.05, TRASH_POS.z);
-    scene.add(trashZoneRing);
+    trashZoneRing.position.set(0.2, 0.05, 0.55);
+    trashBinGroup.add(trashZoneRing);
+    scene.add(trashBinGroup);
 
-    const TOOL_POS = new THREE.Vector3(-6.8, 0, 2.8);
-    const toolCounterMesh = new THREE.Mesh(
-      new THREE.BoxGeometry(2.0, 1.1, 1.4),
-      new THREE.MeshStandardMaterial({ color: 0x2563eb })
+    // --- 設備プロップ：青い工具ステーション（TOOL STATION） ---
+    const TOOL_POS = new THREE.Vector3(-5.9, 0, 3.05);
+    const toolGroup = new THREE.Group();
+    toolGroup.position.copy(TOOL_POS);
+
+    const counterMain = new THREE.Mesh(
+      new THREE.BoxGeometry(3.2, 1.05, 1.25),
+      new THREE.MeshStandardMaterial({ color: 0x4b77b8, roughness: 0.55 })
     );
-    toolCounterMesh.position.set(TOOL_POS.x, 0.55, TOOL_POS.z);
-    toolCounterMesh.castShadow = true;
-    scene.add(toolCounterMesh);
+    counterMain.position.y = 0.525;
+    counterMain.castShadow = true;
+    counterMain.receiveShadow = true;
+    toolGroup.add(counterMain);
+
+    const counterTop = new THREE.Mesh(
+      new THREE.BoxGeometry(3.32, 0.14, 1.36),
+      new THREE.MeshStandardMaterial({ color: 0x6090d4, roughness: 0.45 })
+    );
+    counterTop.position.y = 1.08;
+    counterTop.castShadow = true;
+    toolGroup.add(counterTop);
+
+    const counterSign = new THREE.Mesh(
+      new THREE.BoxGeometry(2.6, 0.45, 0.14),
+      new THREE.MeshStandardMaterial({ color: 0x3a64a3, roughness: 0.5 })
+    );
+    counterSign.position.set(0, 1.36, -0.45);
+    counterSign.castShadow = true;
+    toolGroup.add(counterSign);
+
+    const toolLabel = new THREE.Mesh(
+      new THREE.PlaneGeometry(2.45, 0.42),
+      new THREE.MeshBasicMaterial({ map: createLabelTexture('TOOL STATION', null, '#ffffff', 36, 320, 64), transparent: true })
+    );
+    toolLabel.position.set(0, 1.36, -0.37);
+    toolGroup.add(toolLabel);
+
+    const toolLabelFront = new THREE.Mesh(
+      new THREE.PlaneGeometry(2.45, 0.42),
+      new THREE.MeshBasicMaterial({ map: createLabelTexture('TOOL STATION', null, '#ffffff', 36, 320, 64), transparent: true })
+    );
+    toolLabelFront.position.set(0, 0.62, 0.64);
+    toolGroup.add(toolLabelFront);
 
     const toolZoneRing = new THREE.Mesh(
-      new THREE.RingGeometry(1.45, 1.7, 28),
-      new THREE.MeshBasicMaterial({ color: 0x60a5fa, side: THREE.DoubleSide, transparent: true, opacity: 0.7 })
+      new THREE.RingGeometry(1.75, 2.0, 28),
+      new THREE.MeshBasicMaterial({ color: 0x60a5fa, side: THREE.DoubleSide, transparent: true, opacity: 0.55 })
     );
     toolZoneRing.rotation.x = -Math.PI / 2;
-    toolZoneRing.position.set(TOOL_POS.x, 0.05, TOOL_POS.z);
-    scene.add(toolZoneRing);
+    toolZoneRing.position.set(0.3, 0.05, -0.5);
+    toolGroup.add(toolZoneRing);
+    scene.add(toolGroup);
 
-    // キャラクター3Dモデル生成ヘルパー
-    function createJanitorMesh(bodyColor, capColor) {
+    // --- キャラクター3Dモデル（トゥーン調＋黒アウトライン＋腕脚アニメ） ---
+    const trashBagLabelTex = createLabelTexture('TRASH', '#e5c847', '#3f3f46', 44, 180, 90);
+
+    function createJanitorMesh(bodyColor, capColor, ringColor) {
       const group = new THREE.Group();
+      const bodyMat = new THREE.MeshToonMaterial({ color: bodyColor });
+      const capMat = new THREE.MeshToonMaterial({ color: capColor });
 
-      const body = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.42, 0.48, 1.0, 16),
-        new THREE.MeshStandardMaterial({ color: bodyColor })
-      );
-      body.position.y = 0.55;
+      // 胴体（丸みのあるカプセル）
+      const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.34, 0.42, 8, 16), bodyMat);
+      body.position.y = 0.72;
       body.castShadow = true;
+      addOutline(body, 1.09);
       group.add(body);
 
-      const head = new THREE.Mesh(
-        new THREE.SphereGeometry(0.38, 16, 16),
-        new THREE.MeshStandardMaterial({ color: 0xfed7aa })
-      );
-      head.position.y = 1.3;
+      // 頭
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.36, 18, 16), bodyMat);
+      head.position.y = 1.36;
       head.castShadow = true;
+      addOutline(head, 1.08);
       group.add(head);
 
-      const cap = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.39, 0.4, 0.22, 16),
-        new THREE.MeshStandardMaterial({ color: capColor })
+      // キャップ帽＋ツバ
+      const capDome = new THREE.Mesh(
+        new THREE.SphereGeometry(0.38, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.55),
+        capMat
       );
-      cap.position.y = 1.56;
-      group.add(cap);
+      capDome.position.y = 1.44;
+      addOutline(capDome, 1.07);
+      group.add(capDome);
 
+      const capBrim = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.08, 0.32), capMat);
+      capBrim.position.set(0, 1.52, 0.34);
+      capBrim.rotation.x = 0.12;
+      addOutline(capBrim, 1.12);
+      group.add(capBrim);
+
+      // 腕（左右）
+      const armGeo = new THREE.CapsuleGeometry(0.11, 0.36, 6, 10);
+      const leftArm = new THREE.Group();
+      leftArm.position.set(-0.42, 0.96, 0);
+      const leftArmMesh = new THREE.Mesh(armGeo, bodyMat);
+      leftArmMesh.position.y = -0.2;
+      leftArmMesh.castShadow = true;
+      addOutline(leftArmMesh, 1.15);
+      leftArm.add(leftArmMesh);
+      group.add(leftArm);
+
+      const rightArm = new THREE.Group();
+      rightArm.position.set(0.42, 0.96, 0);
+      const rightArmMesh = new THREE.Mesh(armGeo, bodyMat);
+      rightArmMesh.position.y = -0.2;
+      rightArmMesh.castShadow = true;
+      addOutline(rightArmMesh, 1.15);
+      rightArm.add(rightArmMesh);
+      group.add(rightArm);
+
+      // 脚（左右）
+      const legGeo = new THREE.CapsuleGeometry(0.12, 0.24, 6, 10);
+      const leftLeg = new THREE.Mesh(legGeo, bodyMat);
+      leftLeg.position.set(-0.16, 0.24, 0);
+      leftLeg.castShadow = true;
+      addOutline(leftLeg, 1.15);
+      group.add(leftLeg);
+
+      const rightLeg = new THREE.Mesh(legGeo, bodyMat);
+      rightLeg.position.set(0.16, 0.24, 0);
+      rightLeg.castShadow = true;
+      addOutline(rightLeg, 1.15);
+      group.add(rightLeg);
+
+      // 足元リング＋進行方向ドット
       const ring = new THREE.Mesh(
-        new THREE.RingGeometry(0.55, 0.7, 24),
-        new THREE.MeshBasicMaterial({ color: bodyColor, side: THREE.DoubleSide })
+        new THREE.RingGeometry(0.56, 0.68, 28),
+        new THREE.MeshBasicMaterial({ color: ringColor, side: THREE.DoubleSide })
       );
       ring.rotation.x = -Math.PI / 2;
       ring.position.y = 0.04;
       group.add(ring);
 
-      const heldTrash = new THREE.Mesh(
-        new THREE.DodecahedronGeometry(0.42),
-        new THREE.MeshStandardMaterial({ color: 0xeab308 })
+      const dirDot = new THREE.Mesh(
+        new THREE.CircleGeometry(0.1, 14),
+        new THREE.MeshBasicMaterial({ color: ringColor, side: THREE.DoubleSide })
       );
-      heldTrash.position.set(0, 2.0, 0);
+      dirDot.rotation.x = -Math.PI / 2;
+      dirDot.position.set(0, 0.05, 0.85);
+      group.add(dirDot);
+
+      // 手持ちゴミ袋（頭上に両手で掲げる黄色い袋）
+      const heldTrash = new THREE.Group();
+      heldTrash.position.set(0, 2.02, 0);
+      const bagMesh = new THREE.Mesh(
+        new THREE.SphereGeometry(0.48, 14, 12),
+        new THREE.MeshToonMaterial({ map: trashBagLabelTex })
+      );
+      bagMesh.scale.set(1.05, 0.92, 0.95);
+      bagMesh.castShadow = true;
+      addOutline(bagMesh, 1.08);
+      heldTrash.add(bagMesh);
+      const bagTie = new THREE.Mesh(
+        new THREE.ConeGeometry(0.22, 0.28, 8),
+        new THREE.MeshToonMaterial({ color: 0xdfc03b })
+      );
+      bagTie.position.y = 0.45;
+      addOutline(bagTie, 1.12);
+      heldTrash.add(bagTie);
       heldTrash.visible = false;
       group.add(heldTrash);
 
-      const heldTool = new THREE.Mesh(
-        new THREE.BoxGeometry(0.2, 0.65, 0.2),
-        new THREE.MeshStandardMaterial({ color: 0x38bdf8 })
+      // 手持ち宅配段ボール
+      const heldDelivery = new THREE.Mesh(
+        new THREE.BoxGeometry(0.68, 0.56, 0.68),
+        new THREE.MeshToonMaterial({ color: 0xd99b52 })
       );
-      heldTool.position.set(0.55, 1.0, 0.25);
-      heldTool.rotation.z = -0.4;
+      heldDelivery.position.set(0, 2.0, 0);
+      heldDelivery.castShadow = true;
+      addOutline(heldDelivery, 1.07);
+      heldDelivery.visible = false;
+      group.add(heldDelivery);
+
+      // 手持ちレンチ
+      const heldTool = new THREE.Mesh(
+        new THREE.BoxGeometry(0.14, 0.68, 0.14),
+        new THREE.MeshToonMaterial({ color: 0xe2e8f0 })
+      );
+      heldTool.position.set(0.55, 0.95, 0.32);
+      heldTool.rotation.set(0.6, 0, -0.35);
+      addOutline(heldTool, 1.16);
       heldTool.visible = false;
       group.add(heldTool);
 
-      return { group, heldTrash, heldTool };
+      return {
+        group, leftArm, rightArm, leftLeg, rightLeg,
+        heldTrash, heldDelivery, heldTool,
+        walkPhase: 0, prevX: 0, prevZ: 0
+      };
     }
 
-    // 頭上プログレスバー生成ヘルパー（水漏れ・クレーム住民の進行可視化）
-    function createProgressBar3D(heightY) {
-      const group = new THREE.Group();
-      group.position.y = heightY;
-      group.visible = false;
-
-      const bg = new THREE.Mesh(
-        new THREE.PlaneGeometry(1.2, 0.18),
-        new THREE.MeshBasicMaterial({ color: 0x0f172a, side: THREE.DoubleSide })
-      );
-      group.add(bg);
-
-      const fill = new THREE.Mesh(
-        new THREE.PlaneGeometry(1.12, 0.12),
-        new THREE.MeshBasicMaterial({ color: 0x22c55e, side: THREE.DoubleSide })
-      );
-      fill.position.z = 0.01;
-      group.add(fill);
-
-      return { group, fill };
-    }
-
-    const player1Visual = createJanitorMesh(0x3b82f6, 0x1d4ed8); // 青：タカハシさん
-    const player2Visual = createJanitorMesh(0xf97316, 0xea580c); // オレンジ：ユウタ
+    const player1Visual = createJanitorMesh(0x38a3f1, 0x1d70c4, 0x3b82f6); // 青：1P
+    const player2Visual = createJanitorMesh(0xf98324, 0xd95b12, 0xf97316); // オレンジ：2P
     scene.add(player1Visual.group);
     scene.add(player2Visual.group);
     player2Visual.group.visible = false;
 
+    // キラキラパーティクル管理
+    const sparkleTex = createSparkleTexture();
+    const sparkles = [];
+    function spawnSparkle(x, z) {
+      const mat = new THREE.SpriteMaterial({ map: sparkleTex, transparent: true, opacity: 1 });
+      const sp = new THREE.Sprite(mat);
+      const s = 0.25 + Math.random() * 0.25;
+      sp.scale.set(s, s, 1);
+      sp.position.set(x + (Math.random() - 0.5) * 1.3, 0.35 + Math.random() * 0.4, z + (Math.random() - 0.5) * 1.3);
+      scene.add(sp);
+      sparkles.push({ sprite: sp, vy: 1.2 + Math.random() * 0.8, life: 0.65 });
+    }
+
     const taskMeshes = new Map();
     const flyingMeshes = new Map();
+
+    // 頭上HTMLラベル管理
+    function createBadgeEl(html) {
+      const el = document.createElement('div');
+      el.className = 'w-badge';
+      el.innerHTML = html;
+      worldLabels.appendChild(el);
+      return el;
+    }
+    const p1Badge = createBadgeEl('<div class="p-pill p1">1P</div>');
+    const p2Badge = createBadgeEl('<div class="p-pill p2">2P</div>');
+    p2Badge.style.display = 'none';
+    const taskBadges = new Map();
+
+    const tmpProj = new THREE.Vector3();
+    function positionBadge(el, wx, wy, wz) {
+      tmpProj.set(wx, wy, wz).project(camera);
+      const sx = (tmpProj.x * 0.5 + 0.5) * window.innerWidth;
+      const sy = (-tmpProj.y * 0.5 + 0.5) * window.innerHeight;
+      el.style.left = `${sx}px`;
+      el.style.top = `${sy}px`;
+    }
 
     // --- 2. ゲーム状態＆Trystero通信 ---
     const mySessionId = 'p-' + Math.random().toString(36).slice(2, 10) + '-' + Date.now().toString(36);
@@ -761,20 +1337,20 @@
     let lastRxTime = 0;
 
     const me = {
-      x: -1.5,
-      z: 0.5,
+      x: -1.2,
+      z: 0.4,
       rotY: 0,
-      item: null, // null | 'trash' | 'tool'
+      item: null, // null | 'trash' | 'tool' | 'delivery-101' | 'delivery-102' | 'delivery-103'
       dashTimer: 0,
       dashCd: 0
     };
 
     const peer = {
       connected: false,
-      x: 2.0,
-      z: 0.5,
-      targetX: 2.0,
-      targetZ: 0.5,
+      x: 2.5,
+      z: 0.2,
+      targetX: 2.5,
+      targetZ: 0.2,
       rotY: 0,
       item: null,
       holding: false
@@ -790,11 +1366,16 @@
     let sendInput = null;
     let sendWorld = null;
 
-    function getStars(sc) {
-      if (sc >= 1500) return '★★★';
-      if (sc >= 800) return '★★☆';
-      if (sc >= 300) return '★☆☆';
-      return '☆☆☆';
+    function getStarCount(sc) {
+      if (sc >= 1500) return 3;
+      if (sc >= 800) return 2;
+      if (sc >= 300) return 1;
+      return 0;
+    }
+
+    function renderStarsHtml(sc) {
+      const n = getStarCount(sc);
+      return `<span class="star-on">${'★'.repeat(n)}</span><span class="star-off">${'★'.repeat(3 - n)}</span>`;
     }
 
     function setStatusBadge(text, stateClass = '') {
@@ -816,11 +1397,20 @@
     }
 
     function applyRoleUI() {
-      myAvatar.textContent = isHost ? '1P' : '2P';
-      myAvatar.style.background = isHost ? '#3b82f6' : '#f97316';
+      myAvatar.classList.toggle('p2', !isHost);
+      const cBody = isHost ? '#38bdf8' : '#fb923c';
+      const cCap = isHost ? '#2563eb' : '#ea580c';
+      const cBrim = isHost ? '#1d4ed8' : '#c2410c';
+      const cShirt = isHost ? '#3b82f6' : '#f97316';
+      avatarSvg.innerHTML = `
+        <circle cx="32" cy="28" r="13" fill="${cBody}" stroke="#0f172a" stroke-width="3"/>
+        <path d="M18 24 C18 14, 46 14, 46 24 Z" fill="${cCap}" stroke="#0f172a" stroke-width="3"/>
+        <path d="M26 23 L52 20 L48 26 L26 26 Z" fill="${cBrim}" stroke="#0f172a" stroke-width="2.5"/>
+        <path d="M14 58 C14 43, 50 43, 50 58 Z" fill="${cShirt}" stroke="#0f172a" stroke-width="3"/>
+      `;
     }
 
-    // --- 3. 入力処理（Pointer Events でスマホ＆PC両対応 + キーボード） ---
+    // --- 3. 入力処理（Pointer Events + キーボード） ---
     const keys = {};
     const stick = { x: 0, z: 0 };
     let dashReq = false;
@@ -845,7 +1435,6 @@
       if (k === 'e' || k === 'f' || k === 'enter') actionHold = false;
     });
 
-    // バーチャルスティック（Pointer Events: マルチタッチ・マウス両対応）
     const stickZone = document.getElementById('stickZone');
     const stickKnob = document.getElementById('stickKnob');
     let stickPointerId = null;
@@ -857,13 +1446,11 @@
       try { stickZone.setPointerCapture(e.pointerId); } catch {}
       moveStick(e.clientX, e.clientY);
     });
-
     stickZone.addEventListener('pointermove', (e) => {
       if (e.pointerId !== stickPointerId) return;
       e.preventDefault();
       moveStick(e.clientX, e.clientY);
     });
-
     const releaseStick = (e) => {
       if (e.pointerId !== stickPointerId) return;
       stickPointerId = null;
@@ -878,18 +1465,14 @@
       const r = stickZone.getBoundingClientRect();
       let dx = cx - (r.left + r.width / 2);
       let dy = cy - (r.top + r.height / 2);
-      const maxR = 38;
+      const maxR = 40;
       const d = Math.hypot(dx, dy);
-      if (d > maxR) {
-        dx = (dx / d) * maxR;
-        dy = (dy / d) * maxR;
-      }
+      if (d > maxR) { dx = (dx / d) * maxR; dy = (dy / d) * maxR; }
       stickKnob.style.transform = `translate(${dx}px, ${dy}px)`;
       stick.x = dx / maxR;
       stick.z = dy / maxR;
     }
 
-    // アクションボタン群（Pointer Events + pointercancel 確実解除）
     const actionBtn = document.getElementById('actionBtn');
     const dashBtn = document.getElementById('dashBtn');
     const passBtn = document.getElementById('passBtn');
@@ -954,6 +1537,7 @@
       peer.connected = false;
       peer.holding = false;
       player2Visual.group.visible = false;
+      p2Badge.style.display = 'none';
       isHost = true;
       applyRoleUI();
     }
@@ -991,8 +1575,8 @@
       remoteSessionId = peerSid;
       peer.connected = true;
       player2Visual.group.visible = true;
+      p2Badge.style.display = 'flex';
 
-      // お互いが交換した mySessionId 同士で決定的にホスト判定（Trysteroバージョン非依存）
       isHost = mySessionId < remoteSessionId;
       applyRoleUI();
 
@@ -1001,9 +1585,9 @@
         addLog(`相方確定(${peerId.slice(0, 8)}) → 自分が Host(1P)`, 'ok');
         broadcastWorld();
       } else {
-        if (Math.hypot(me.x - (-1.5), me.z - 0.5) < 0.5) {
-          me.x = 2.0;
-          me.z = 0.5;
+        if (Math.hypot(me.x - (-1.2), me.z - 0.4) < 0.5) {
+          me.x = 2.5;
+          me.z = 0.2;
         }
         setStatusBadge('2P接続中 (Client: 2P)', 'connected');
         addLog(`相方確定(${peerId.slice(0, 8)}) → 自分が Client(2P)`, 'ok');
@@ -1026,9 +1610,7 @@
       try {
         const modUrl = STRATEGY_URLS[strategy] || STRATEGY_URLS.nostr;
         const trystero = await import(modUrl);
-        if (!trystero.joinRoom) {
-          throw new Error('joinRoomが見つかりませんでした');
-        }
+        if (!trystero.joinRoom) throw new Error('joinRoomが見つかりませんでした');
 
         addLog(`Trystero(${strategy}) ロード完了 sid=${mySessionId.slice(0, 10)}`, 'ok');
 
@@ -1052,6 +1634,7 @@
           remotePeerId = id;
           peer.connected = true;
           player2Visual.group.visible = true;
+          p2Badge.style.display = 'flex';
           addLog(`相方が接続(${id.slice(0, 8)}) → ホスト判定を交換中...`, 'ok');
           txHello({ sid: mySessionId }, id);
           updateDebugMeta();
@@ -1060,9 +1643,7 @@
         rxHello((data, peerId) => {
           if (remotePeerId && peerId !== remotePeerId) return;
           lastRxTime = performance.now();
-          if (data && data.sid) {
-            resolveHostRole(peerId, data.sid);
-          }
+          if (data && data.sid) resolveHostRole(peerId, data.sid);
         });
 
         room.onPeerLeave((id) => {
@@ -1072,6 +1653,7 @@
           peer.connected = false;
           peer.holding = false;
           player2Visual.group.visible = false;
+          p2Badge.style.display = 'none';
           isHost = true;
           applyRoleUI();
           setStatusBadge('相方が退出（1人モード継続）', '');
@@ -1082,18 +1664,15 @@
         rxState((data, peerId) => {
           if (remotePeerId && peerId !== remotePeerId) return;
           lastRxTime = performance.now();
-          if (!remoteSessionId && data.sid) {
-            resolveHostRole(peerId, data.sid);
-          }
+          if (!remoteSessionId && data.sid) resolveHostRole(peerId, data.sid);
           peer.targetX = data.x;
           peer.targetZ = data.z;
           peer.rotY = data.rotY;
           peer.holding = !!data.holding;
-          if (!isHost) {
-            peer.item = data.item;
-          }
+          if (!isHost) peer.item = data.item;
           peer.connected = true;
           player2Visual.group.visible = true;
+          p2Badge.style.display = 'flex';
         });
 
         rxInput((ev, peerId) => {
@@ -1102,7 +1681,6 @@
           lastRxTime = performance.now();
           if (ev.type === 'retry') {
             if (!gameActive) {
-              addLog('2Pからリトライ要求を受信 → 再開', 'ok');
               resultOverlay.style.display = 'none';
               initShift();
               broadcastWorld();
@@ -1123,9 +1701,8 @@
           me.item = w.clientItem;
           peer.item = w.hostItem;
 
-          if (w.phase === 'result' && gameActive) {
-            showResultScreen();
-          } else if (w.phase === 'playing' && !gameActive) {
+          if (w.phase === 'result' && gameActive) showResultScreen();
+          else if (w.phase === 'playing' && !gameActive) {
             resultOverlay.style.display = 'none';
             gameActive = true;
           }
@@ -1149,7 +1726,8 @@
     function showResultScreen() {
       gameActive = false;
       finalScore.textContent = `SCORE: ${score.toLocaleString()}`;
-      finalStars.textContent = getStars(score);
+      const n = getStarCount(score);
+      finalStars.textContent = '★'.repeat(n) + '☆'.repeat(3 - n);
       resultOverlay.style.display = 'flex';
     }
 
@@ -1160,7 +1738,6 @@
         broadcastWorld();
       } else if (sendInput) {
         sendInput({ type: 'retry' });
-        addLog('Hostへリトライ要求を送信しました');
       }
     });
 
@@ -1168,14 +1745,16 @@
       score = 0;
       timeLeft = 120;
       spawnAcc = 0;
-      me.x = isHost ? -1.5 : 2.0;
-      me.z = 0.5;
+      me.x = isHost ? -1.2 : 2.5;
+      me.z = 0.4;
       me.item = null;
       peer.item = null;
       flyingItems = [];
+      // 初期タスクをコンセプト画像の構成（LEAK 103 / TRASH 101 / DELIVERY 102）に合わせる
       tasks = [
-        { id: 't1', type: 'trash', room: '101', x: -2.0, z: -2.2, progress: 0, timer: 45, maxTimer: 45 },
-        { id: 't2', type: 'leak', room: '103', x: 4.5, z: 1.2, progress: 0, timer: 45, maxTimer: 45 }
+        { id: 't-leak', type: 'leak', room: '103', x: 4.8, z: -0.6, progress: 0, timer: 48, maxTimer: 48 },
+        { id: 't-trash', type: 'trash', room: '101', x: -3.2, z: 1.4, progress: 0, timer: 45, maxTimer: 45 },
+        { id: 't-deliv', type: 'delivery', room: '102', x: -2.0, z: -2.0, progress: 0, timer: 50, maxTimer: 50 }
       ];
       gameActive = true;
       updateHUD();
@@ -1183,12 +1762,13 @@
 
     function spawnNewTask() {
       if (tasks.length >= 5) return;
-      const types = ['trash', 'leak', 'resident'];
+      const types = ['trash', 'leak', 'delivery', 'resident'];
       const type = types[Math.floor(Math.random() * types.length)];
       const rooms = ['101', '102', '103'];
       const room = rooms[Math.floor(Math.random() * rooms.length)];
-      const x = -3.5 + Math.random() * 9.5;
-      const z = -2.8 + Math.random() * 5.6;
+      let x = -3.4 + Math.random() * 9.5;
+      let z = -1.6 + Math.random() * 4.6;
+      if (x > 2.6 && z < -1.8) z = -1.4; // 103のくぼみ壁を避ける
 
       tasks.push({
         id: Math.random().toString(36).slice(2, 8),
@@ -1197,27 +1777,26 @@
         x,
         z,
         progress: 0,
-        timer: 40,
-        maxTimer: 40
+        timer: 42,
+        maxTimer: 42
       });
     }
 
-    // 進行加算ヘルパー（タップ・長押し共通）
     function applyWorkProgress(px, pz, item, amount) {
       const target = tasks.find(
-        (t) => (t.type === 'leak' || t.type === 'resident') && Math.hypot(px - t.x, pz - t.z) < 2.1
+        (t) => (t.type === 'leak' || t.type === 'resident') && Math.hypot(px - t.x, pz - t.z) < 2.2
       );
-      if (!target) return false;
+      if (!target) return null;
       const mult = (target.type === 'leak' && item === 'tool') ? 1.85 : 1.0;
       target.progress += amount * mult;
+      if (Math.random() < 0.35) spawnSparkle(target.x, target.z);
       if (target.progress >= 1) {
         tasks = tasks.filter((t) => t.id !== target.id);
         score += target.type === 'leak' ? 250 : 200;
       }
-      return true;
+      return target;
     }
 
-    // ホスト側アクション判定
     function processPlayerAction(kind, px, pz, rotY, who) {
       const actor = who === 'host' ? me : peer;
 
@@ -1227,13 +1806,13 @@
         let tz = pz + Math.cos(rotY) * 4.5;
         if (peer.connected) {
           const other = who === 'host' ? peer : me;
-          if (Math.hypot(other.x - px, other.z - pz) < 11.0) {
+          if (Math.hypot(other.x - px, other.z - pz) < 11.5) {
             tx = other.x;
             tz = other.z;
           }
         }
-        tx = Math.max(-7.8, Math.min(7.8, tx));
-        tz = Math.max(-3.8, Math.min(4.0, tz));
+        tx = Math.max(-7.6, Math.min(7.6, tx));
+        tz = Math.max(-3.6, Math.min(3.8, tz));
         flyingItems.push({
           id: Math.random().toString(36).slice(2, 7),
           item: actor.item,
@@ -1249,26 +1828,42 @@
 
       if (kind === 'tap') {
         // ゴミをゴミ箱へ投入
-        if (actor.item === 'trash' && Math.hypot(px - TRASH_POS.x, pz - TRASH_POS.z) < 2.3) {
+        if (actor.item === 'trash' && Math.hypot(px - TRASH_POS.x, pz - TRASH_POS.z) < 2.5) {
           actor.item = null;
-          score += 150;
+          score += 180;
+          spawnSparkle(TRASH_POS.x, TRASH_POS.z);
           return;
         }
-        // 工具ステーションでレンチ取得/返却
-        if (Math.hypot(px - TOOL_POS.x, pz - TOOL_POS.z) < 2.4) {
-          actor.item = actor.item === 'tool' ? null : 'tool';
-          return;
-        }
-        // 床のゴミを拾う
-        if (!actor.item) {
-          const tIdx = tasks.findIndex((t) => t.type === 'trash' && Math.hypot(px - t.x, pz - t.z) < 1.9);
-          if (tIdx !== -1) {
-            tasks.splice(tIdx, 1);
-            actor.item = 'trash';
+        // 宅配荷物を該当号室のドアへ配達
+        if (actor.item && actor.item.startsWith('delivery-')) {
+          const targetRoom = actor.item.split('-')[1];
+          const doorPos = ROOM_DOORS[targetRoom];
+          if (doorPos && Math.hypot(px - doorPos.x, pz - (doorPos.z + 0.9)) < 2.2) {
+            actor.item = null;
+            score += 220;
+            spawnSparkle(doorPos.x, doorPos.z + 0.8);
             return;
           }
         }
-        // 水漏れ修理 or 住民なだめ（タップ進行）
+        // 工具ステーションでレンチ取得/返却
+        if (Math.hypot(px - TOOL_POS.x, pz - TOOL_POS.z) < 2.6) {
+          if (!actor.item || actor.item === 'tool') {
+            actor.item = actor.item === 'tool' ? null : 'tool';
+            return;
+          }
+        }
+        // 床のゴミ or 宅配荷物を拾う
+        if (!actor.item) {
+          const idx = tasks.findIndex(
+            (t) => (t.type === 'trash' || t.type === 'delivery') && Math.hypot(px - t.x, pz - t.z) < 2.0
+          );
+          if (idx !== -1) {
+            const picked = tasks.splice(idx, 1)[0];
+            actor.item = picked.type === 'trash' ? 'trash' : `delivery-${picked.room}`;
+            return;
+          }
+        }
+        // 水漏れ修理 / 住民対応
         applyWorkProgress(px, pz, actor.item, 0.22);
       }
     }
@@ -1288,20 +1883,35 @@
     }
 
     function updateActionHint() {
-      if (me.item === 'trash' && Math.hypot(me.x - TRASH_POS.x, me.z - TRASH_POS.z) < 2.3) {
+      if (me.item === 'trash' && Math.hypot(me.x - TRASH_POS.x, me.z - TRASH_POS.z) < 2.5) {
         actionHint.textContent = 'ゴミを捨てる';
         return;
       }
-      if (Math.hypot(me.x - TOOL_POS.x, me.z - TOOL_POS.z) < 2.4) {
+      if (me.item && me.item.startsWith('delivery-')) {
+        const roomNo = me.item.split('-')[1];
+        const doorPos = ROOM_DOORS[roomNo];
+        if (doorPos && Math.hypot(me.x - doorPos.x, me.z - (doorPos.z + 0.9)) < 2.2) {
+          actionHint.textContent = `${roomNo}号室へ渡す`;
+          return;
+        }
+        actionHint.textContent = `${roomNo}号室へ運ぶ`;
+        return;
+      }
+      if (Math.hypot(me.x - TOOL_POS.x, me.z - TOOL_POS.z) < 2.6 && (!me.item || me.item === 'tool')) {
         actionHint.textContent = me.item === 'tool' ? '工具を戻す' : '工具を取る';
         return;
       }
-      if (!me.item && tasks.some((t) => t.type === 'trash' && Math.hypot(me.x - t.x, me.z - t.z) < 1.9)) {
-        actionHint.textContent = 'ゴミを拾う';
-        return;
+      if (!me.item) {
+        const pick = tasks.find(
+          (t) => (t.type === 'trash' || t.type === 'delivery') && Math.hypot(me.x - t.x, me.z - t.z) < 2.0
+        );
+        if (pick) {
+          actionHint.textContent = pick.type === 'trash' ? 'ゴミを拾う' : `荷物(${pick.room})`;
+          return;
+        }
       }
       const nearWork = tasks.find(
-        (t) => (t.type === 'leak' || t.type === 'resident') && Math.hypot(me.x - t.x, me.z - t.z) < 2.1
+        (t) => (t.type === 'leak' || t.type === 'resident') && Math.hypot(me.x - t.x, me.z - t.z) < 2.2
       );
       if (nearWork) {
         actionHint.textContent = nearWork.type === 'leak' ? '長押しで修理' : '長押しで対応';
@@ -1310,25 +1920,39 @@
       actionHint.textContent = '持つ/修理';
     }
 
+    // タスクアイコンSVG
+    const TASK_ICONS = {
+      leak: '<svg viewBox="0 0 24 24" width="18" height="18"><path d="M19.5 6.5a4.8 4.8 0 0 0-6 6l-6.2 6.2a2 2 0 1 0 2.8 2.8l6.2-6.2a4.8 4.8 0 0 0 6-6l-2.6 2.6-2.8-2.8 2.6-2.6z" fill="#64748b" stroke="#0f172a" stroke-width="1.5"/></svg>',
+      trash: '<svg viewBox="0 0 24 24" width="18" height="18"><path d="M5 7h14l-1.2 13a2 2 0 0 1-2 1.8H8.2a2 2 0 0 1-2-1.8L5 7zm3-3h8l1 2H7l1-2z" fill="#94a3b8" stroke="#0f172a" stroke-width="1.5"/></svg>',
+      delivery: '<svg viewBox="0 0 24 24" width="18" height="18"><rect x="3" y="6" width="18" height="14" rx="2" fill="#d99b52" stroke="#0f172a" stroke-width="1.5"/><path d="M3 10h18M10 6v4h4V6" fill="#fef3c7" stroke="#0f172a" stroke-width="1.4"/></svg>',
+      resident: '<svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="9" fill="#fb7185" stroke="#0f172a" stroke-width="1.5"/><path d="M8 10l2.5 1.5M16 10l-2.5 1.5M8.5 16c1.5-1.5 5.5-1.5 7 0" stroke="#0f172a" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>'
+    };
+
     function updateHUD() {
       scoreVal.textContent = score.toLocaleString();
-      starVal.textContent = getStars(score);
+      starVal.innerHTML = renderStarsHtml(score);
 
       const sec = Math.max(0, Math.ceil(timeLeft));
       const m = String(Math.floor(sec / 60)).padStart(2, '0');
       const s = String(sec % 60).padStart(2, '0');
       timeVal.textContent = `${m}:${s}`;
+      timerBox.classList.toggle('low', sec <= 20);
 
-      taskCards.innerHTML = tasks.map((t) => {
-        const label = t.type === 'leak' ? `🔧 LEAK (${t.room})`
-                    : t.type === 'trash' ? `🗑️ TRASH (${t.room})`
-                    : `😡 CLAIM (${t.room})`;
+      taskCards.innerHTML = tasks.slice(0, 3).map((t) => {
+        const label = t.type === 'leak' ? `LEAK (${t.room})`
+                    : t.type === 'trash' ? `TRASH (${t.room})`
+                    : t.type === 'delivery' ? `DELIVERY (${t.room})`
+                    : `CLAIM (${t.room})`;
         const pct = Math.max(0, Math.min(100, (t.timer / t.maxTimer) * 100));
-        const urgent = pct < 35 ? 'urgent' : '';
+        const urgent = pct < 38;
         return `
-          <div class="task-card ${urgent}">
-            <div class="task-title"><span>${label}</span><span>${urgent ? '!' : ''}</span></div>
-            <div class="task-bar-bg"><div class="task-bar-fill" style="width:${pct}%"></div></div>
+          <div class="task-card ${urgent ? 'urgent' : ''}">
+            <div class="task-icon">${TASK_ICONS[t.type] || ''}</div>
+            <div class="task-body">
+              <div class="task-title">${label}</div>
+              <div class="task-bar-bg"><div class="task-bar-fill" style="width:${pct}%"></div></div>
+            </div>
+            ${urgent ? '<div class="urgent-dot">!</div>' : ''}
           </div>
         `;
       }).join('');
@@ -1344,16 +1968,16 @@
       lastT = now;
 
       if (gameActive) {
-        // 移動計算
-        let mx = stick.x;
-        let mz = stick.z;
-        if (keys['w'] || keys['arrowup']) mz -= 1;
-        if (keys['s'] || keys['arrowdown']) mz += 1;
-        if (keys['a'] || keys['arrowleft']) mx -= 1;
-        if (keys['d'] || keys['arrowright']) mx += 1;
+        // 画面方向基準の入力ベクトル → 3DワールドXZ方向へ変換
+        let ix = stick.x;
+        let iy = stick.z;
+        if (keys['w'] || keys['arrowup']) iy -= 1;
+        if (keys['s'] || keys['arrowdown']) iy += 1;
+        if (keys['a'] || keys['arrowleft']) ix -= 1;
+        if (keys['d'] || keys['arrowright']) ix += 1;
 
-        const len = Math.hypot(mx, mz);
-        if (len > 1) { mx /= len; mz /= len; }
+        const len = Math.hypot(ix, iy);
+        if (len > 1) { ix /= len; iy /= len; }
 
         if (me.dashCd > 0) me.dashCd -= dt;
         if (me.dashTimer > 0) me.dashTimer -= dt;
@@ -1363,14 +1987,20 @@
         }
         dashReq = false;
 
-        const speed = (me.item === 'trash' ? 3.8 : 5.2) * (me.dashTimer > 0 ? 1.85 : 1.0);
+        const heavy = me.item === 'trash' || (me.item && me.item.startsWith('delivery-'));
+        const speed = (heavy ? 4.0 : 5.4) * (me.dashTimer > 0 ? 1.85 : 1.0);
         if (len > 0.05) {
-          me.x = Math.max(-8.0, Math.min(8.0, me.x + mx * speed * dt));
-          me.z = Math.max(-4.0, Math.min(4.2, me.z + mz * speed * dt));
-          me.rotY = Math.atan2(mx, mz);
+          const wx = camRight.x * ix - camFwd.x * iy;
+          const wz = camRight.z * ix - camFwd.z * iy;
+          let nx = Math.max(-7.8, Math.min(7.8, me.x + wx * speed * dt));
+          let nz = Math.max(-3.9, Math.min(3.9, me.z + wz * speed * dt));
+          // 103号室前のくぼみ壁の簡易当たり判定
+          if (nx > 2.7 && nz < -2.1) nz = -2.1;
+          me.x = nx;
+          me.z = nz;
+          me.rotY = Math.atan2(wx, wz);
         }
 
-        // アクション＆パス処理
         if (actionJust) {
           if (isHost) processPlayerAction('tap', me.x, me.z, me.rotY, 'host');
           else if (sendInput) sendInput({ type: 'tap', x: me.x, z: me.z, rotY: me.rotY });
@@ -1382,7 +2012,6 @@
           passReq = false;
         }
 
-        // ホスト側のワールド進行
         if (isHost) {
           timeLeft -= dt;
           if (timeLeft <= 0) {
@@ -1390,15 +2019,9 @@
             showResultScreen();
             broadcastWorld();
           } else {
-            // 長押し修理・なだめ（1P・2P両方を処理）
-            if (actionHold) {
-              applyWorkProgress(me.x, me.z, me.item, 0.48 * dt);
-            }
-            if (peer.connected && peer.holding) {
-              applyWorkProgress(peer.x, peer.z, peer.item, 0.48 * dt);
-            }
+            if (actionHold) applyWorkProgress(me.x, me.z, me.item, 0.48 * dt);
+            if (peer.connected && peer.holding) applyWorkProgress(peer.x, peer.z, peer.item, 0.48 * dt);
 
-            // タスクの制限時間減少
             for (let i = tasks.length - 1; i >= 0; i--) {
               tasks[i].timer -= dt;
               if (tasks[i].timer <= 0) {
@@ -1407,25 +2030,23 @@
               }
             }
 
-            // 投げられたアイテムの軌道とキャッチ判定
             for (let i = flyingItems.length - 1; i >= 0; i--) {
               const f = flyingItems[i];
               f.t += dt * 2.2;
               if (f.t >= 1) {
-                if (!me.item && Math.hypot(me.x - f.tx, me.z - f.tz) < 1.7) {
+                if (!me.item && Math.hypot(me.x - f.tx, me.z - f.tz) < 1.8) {
                   me.item = f.item;
-                } else if (peer.connected && !peer.item && Math.hypot(peer.x - f.tx, peer.z - f.tz) < 1.7) {
+                } else if (peer.connected && !peer.item && Math.hypot(peer.x - f.tx, peer.z - f.tz) < 1.8) {
                   peer.item = f.item;
                 } else if (f.item === 'trash') {
                   tasks.push({
                     id: Math.random().toString(36).slice(2, 8),
-                    type: 'trash',
-                    room: '廊下',
-                    x: f.tx,
-                    z: f.tz,
-                    progress: 0,
-                    timer: 35,
-                    maxTimer: 35
+                    type: 'trash', room: '廊下', x: f.tx, z: f.tz, progress: 0, timer: 35, maxTimer: 35
+                  });
+                } else if (f.item && f.item.startsWith('delivery-')) {
+                  tasks.push({
+                    id: Math.random().toString(36).slice(2, 8),
+                    type: 'delivery', room: f.item.split('-')[1], x: f.tx, z: f.tz, progress: 0, timer: 35, maxTimer: 35
                   });
                 }
                 flyingItems.splice(i, 1);
@@ -1433,22 +2054,19 @@
             }
 
             spawnAcc += dt;
-            if (spawnAcc >= 5.0) {
+            if (spawnAcc >= 5.2) {
               spawnAcc = 0;
               spawnNewTask();
             }
           }
-
           updateHUD();
         }
 
         updateActionHint();
 
-        // 相手キャラの位置補間
         peer.x += (peer.targetX - peer.x) * 0.28;
         peer.z += (peer.targetZ - peer.z) * 0.28;
 
-        // ネットワーク同期送信（30fps）
         netAcc += dt;
         if (netAcc >= 0.033) {
           netAcc = 0;
@@ -1466,33 +2084,96 @@
         }
       }
 
+      // キラキラパーティクル更新
+      for (let i = sparkles.length - 1; i >= 0; i--) {
+        const sp = sparkles[i];
+        sp.life -= dt;
+        sp.sprite.position.y += sp.vy * dt;
+        sp.sprite.material.opacity = Math.max(0, sp.life / 0.65);
+        if (sp.life <= 0) {
+          scene.remove(sp.sprite);
+          sp.sprite.material.dispose();
+          sparkles.splice(i, 1);
+        }
+      }
+
       debugAcc += dt;
       if (debugAcc >= 0.5 && debugPanel.classList.contains('open')) {
         debugAcc = 0;
         updateDebugMeta();
       }
 
-      sync3DVisuals();
+      sync3DVisuals(dt, now);
       renderer.render(scene, camera);
       requestAnimationFrame(animate);
     }
 
-    // --- 6. 3Dモデルの座標・表示同期 ---
-    function sync3DVisuals() {
+    // キャラアニメーション更新
+    function updateCharacterVisual(vis, data, dt, isWorking) {
+      vis.group.position.set(data.x, 0, data.z);
+      vis.group.rotation.y = data.rotY;
+
+      const moved = Math.hypot(data.x - vis.prevX, data.z - vis.prevZ);
+      vis.prevX = data.x;
+      vis.prevZ = data.z;
+      if (moved > 0.005) vis.walkPhase += dt * 14;
+      else vis.walkPhase *= 0.85;
+
+      const swing = Math.sin(vis.walkPhase) * 0.55;
+      vis.leftLeg.rotation.x = swing;
+      vis.rightLeg.rotation.x = -swing;
+
+      const carryingOverhead = data.item === 'trash' || (data.item && data.item.startsWith('delivery-'));
+      vis.heldTrash.visible = data.item === 'trash';
+      vis.heldDelivery.visible = !!(data.item && data.item.startsWith('delivery-'));
+      vis.heldTool.visible = data.item === 'tool';
+
+      if (carryingOverhead) {
+        // 両手を上げて頭上に掲げるポーズ
+        vis.leftArm.rotation.set(0, 0, -2.85);
+        vis.rightArm.rotation.set(0, 0, 2.85);
+      } else if (isWorking) {
+        // 修理・対応中の前傾腕振りポーズ
+        const workSwing = Math.sin(performance.now() * 0.022) * 0.45;
+        vis.leftArm.rotation.set(-1.1 + workSwing, 0, 0);
+        vis.rightArm.rotation.set(-1.1 - workSwing, 0, 0);
+      } else {
+        vis.leftArm.rotation.set(-swing * 0.8, 0, 0.12);
+        vis.rightArm.rotation.set(swing * 0.8, 0, -0.12);
+      }
+    }
+
+    // --- 6. 3Dモデル＆2D頭上バッジの同期 ---
+    function sync3DVisuals(dt, now) {
       const p1Data = isHost ? me : peer;
       const p2Data = isHost ? peer : me;
+      const p1Work = isHost ? actionHold : peer.holding;
+      const p2Work = isHost ? peer.holding : actionHold;
 
-      player1Visual.group.position.set(p1Data.x, 0, p1Data.z);
-      player1Visual.group.rotation.y = p1Data.rotY;
-      player1Visual.heldTrash.visible = p1Data.item === 'trash';
-      player1Visual.heldTool.visible = p1Data.item === 'tool';
+      updateCharacterVisual(player1Visual, p1Data, dt, p1Work);
+      updateCharacterVisual(player2Visual, p2Data, dt, p2Work);
 
-      player2Visual.group.position.set(p2Data.x, 0, p2Data.z);
-      player2Visual.group.rotation.y = p2Data.rotY;
-      player2Visual.heldTrash.visible = p2Data.item === 'trash';
-      player2Visual.heldTool.visible = p2Data.item === 'tool';
+      positionBadge(p1Badge, p1Data.x, p1Data.item ? 2.85 : 2.15, p1Data.z);
+      if (player2Visual.group.visible) {
+        p2Badge.style.display = 'flex';
+        positionBadge(p2Badge, p2Data.x, p2Data.item ? 2.85 : 2.15, p2Data.z);
+      } else {
+        p2Badge.style.display = 'none';
+      }
 
-      // タスクオブジェクトの同期
+      // 宅配先ドアのリングハイライト
+      const myDelivRoom = (me.item && me.item.startsWith('delivery-')) ? me.item.split('-')[1] : null;
+      const peerDelivRoom = (peer.item && peer.item.startsWith('delivery-')) ? peer.item.split('-')[1] : null;
+      Object.entries(doorRings).forEach(([roomNo, ring]) => {
+        const active = roomNo === myDelivRoom || roomNo === peerDelivRoom;
+        ring.visible = active;
+        if (active) {
+          const pulse = 1 + Math.sin(now * 0.008) * 0.1;
+          ring.scale.set(pulse, pulse, 1);
+        }
+      });
+
+      // タスクオブジェクト＆頭上バッジ同期
       const activeIds = new Set(tasks.map((t) => t.id));
       for (const [id, entry] of taskMeshes) {
         if (!activeIds.has(id)) {
@@ -1500,57 +2181,106 @@
           taskMeshes.delete(id);
         }
       }
+      for (const [id, el] of taskBadges) {
+        if (!activeIds.has(id)) {
+          el.remove();
+          taskBadges.delete(id);
+        }
+      }
+
       for (const t of tasks) {
         let entry = taskMeshes.get(t.id);
         if (!entry) {
           const root = new THREE.Group();
-          let body;
-          let barY = 1.6;
           if (t.type === 'trash') {
-            body = new THREE.Mesh(
-              new THREE.DodecahedronGeometry(0.45),
-              new THREE.MeshStandardMaterial({ color: 0xca8a04 })
-            );
-            body.position.y = 0.45;
+            // コンセプト画像風のゴミ山（複数のポリゴン塊）
+            const colors = [0x94a3b8, 0xe5c847, 0xd99b52, 0x64748b];
+            for (let i = 0; i < 4; i++) {
+              const piece = new THREE.Mesh(
+                new THREE.DodecahedronGeometry(0.28 + (i === 0 ? 0.14 : 0)),
+                new THREE.MeshToonMaterial({ color: colors[i] })
+              );
+              const ang = (i * Math.PI * 2) / 3;
+              piece.position.set(i === 0 ? 0 : Math.cos(ang) * 0.34, 0.25 + (i === 0 ? 0.12 : 0), i === 0 ? 0 : Math.sin(ang) * 0.3);
+              piece.castShadow = true;
+              addOutline(piece, 1.1);
+              root.add(piece);
+            }
           } else if (t.type === 'leak') {
-            body = new THREE.Mesh(
-              new THREE.CylinderGeometry(0.95, 1.05, 0.08, 24),
-              new THREE.MeshStandardMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.85 })
+            // 光沢のある水たまり（複数の重なり＋ハイライト）
+            const puddleMat = new THREE.MeshStandardMaterial({
+              color: 0x5cc8ff, roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.88
+            });
+            const discs = [
+              { r: 0.95, x: 0, z: 0 },
+              { r: 0.58, x: 0.65, z: 0.28 },
+              { r: 0.45, x: -0.68, z: -0.2 }
+            ];
+            discs.forEach((d) => {
+              const m = new THREE.Mesh(new THREE.CylinderGeometry(d.r, d.r * 1.05, 0.05, 22), puddleMat);
+              m.position.set(d.x, 0.04, d.z);
+              root.add(m);
+            });
+          } else if (t.type === 'delivery') {
+            // 段ボール荷物
+            const box = new THREE.Mesh(
+              new THREE.BoxGeometry(0.75, 0.62, 0.75),
+              new THREE.MeshToonMaterial({ color: 0xd99b52 })
             );
-            body.position.y = 0.06;
-            barY = 1.1;
+            box.position.y = 0.32;
+            box.castShadow = true;
+            addOutline(box, 1.07);
+            root.add(box);
+
+            const tape = new THREE.Mesh(
+              new THREE.BoxGeometry(0.77, 0.08, 0.18),
+              new THREE.MeshBasicMaterial({ color: 0xfef3c7 })
+            );
+            tape.position.y = 0.61;
+            root.add(tape);
           } else {
-            body = new THREE.Mesh(
-              new THREE.CylinderGeometry(0.4, 0.45, 1.3, 16),
-              new THREE.MeshStandardMaterial({ color: 0xe11d48 })
-            );
-            body.position.y = 0.65;
-            barY = 1.9;
+            // クレーム住民（赤ピンクのトゥーンキャラ）
+            const cMat = new THREE.MeshToonMaterial({ color: 0xf43f5e });
+            const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.32, 0.4, 8, 14), cMat);
+            body.position.y = 0.68;
+            body.castShadow = true;
+            addOutline(body, 1.09);
+            root.add(body);
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.34, 14, 14), cMat);
+            head.position.y = 1.3;
+            addOutline(head, 1.09);
+            root.add(head);
           }
-          body.castShadow = true;
-          root.add(body);
-
-          const bar = createProgressBar3D(barY);
-          root.add(bar.group);
-
           scene.add(root);
-          entry = { root, body, bar };
+          entry = { root };
           taskMeshes.set(t.id, entry);
         }
 
         entry.root.position.set(t.x, 0, t.z);
         if (t.type === 'leak') {
-          const s = Math.max(0.25, 1 - t.progress * 0.75);
-          entry.body.scale.set(s, 1, s);
+          const s = Math.max(0.3, 1 - t.progress * 0.7);
+          entry.root.scale.set(s, 1, s);
+          if (Math.random() < 0.06) spawnSparkle(t.x, t.z);
         }
-        if (t.type === 'leak' || t.type === 'resident') {
-          const hasProgress = t.progress > 0.01;
-          entry.bar.group.visible = hasProgress;
-          if (hasProgress) {
-            const p = Math.max(0.05, Math.min(1, t.progress));
-            entry.bar.fill.scale.x = p;
-            entry.bar.fill.position.x = -(1 - p) * 0.56;
-            entry.bar.group.lookAt(camera.position);
+
+        // 頭上ラベル（WATER LEAK / CLAIM / DELIVERY）
+        if (t.type === 'leak' || t.type === 'resident' || t.type === 'delivery') {
+          let el = taskBadges.get(t.id);
+          if (!el) {
+            if (t.type === 'delivery') {
+              el = createBadgeEl(`<div class="delivery-pill">📦 ${t.room}</div>`);
+            } else {
+              const title = t.type === 'leak' ? 'WATER LEAK' : `CLAIM ${t.room}`;
+              const cls = t.type === 'resident' ? 'claim' : '';
+              el = createBadgeEl(`<div class="t-label">${title}</div><div class="t-bar-wrap"><div class="t-bar-fill ${cls}"></div></div>`);
+            }
+            taskBadges.set(t.id, el);
+          }
+          const yOff = t.type === 'resident' ? 2.15 : t.type === 'delivery' ? 1.15 : 1.05;
+          positionBadge(el, t.x, yOff, t.z);
+          if (t.type === 'leak' || t.type === 'resident') {
+            const fill = el.querySelector('.t-bar-fill');
+            if (fill) fill.style.width = `${Math.min(100, Math.round(t.progress * 100))}%`;
           }
         }
       }
@@ -1566,10 +2296,11 @@
       for (const f of flyingItems) {
         let mesh = flyingMeshes.get(f.id);
         if (!mesh) {
-          mesh = new THREE.Mesh(
-            new THREE.SphereGeometry(0.35, 12, 12),
-            new THREE.MeshStandardMaterial({ color: f.item === 'trash' ? 0xfacc15 : 0x38bdf8 })
-          );
+          const isDeliv = f.item && f.item.startsWith('delivery-');
+          const geo = isDeliv ? new THREE.BoxGeometry(0.55, 0.45, 0.55) : new THREE.SphereGeometry(0.35, 12, 12);
+          const col = f.item === 'trash' ? 0xe5c847 : isDeliv ? 0xd99b52 : 0x38bdf8;
+          mesh = new THREE.Mesh(geo, new THREE.MeshToonMaterial({ color: col }));
+          addOutline(mesh, 1.1);
           scene.add(mesh);
           flyingMeshes.set(f.id, mesh);
         }
@@ -1577,6 +2308,7 @@
         const z = f.sz + (f.tz - f.sz) * f.t;
         const y = 1.2 + Math.sin(f.t * Math.PI) * 2.4;
         mesh.position.set(x, y, z);
+        mesh.rotation.y += dt * 6;
       }
     }
 
@@ -1586,6 +2318,7 @@
       renderer.setSize(window.innerWidth, window.innerHeight);
     });
 
+    applyRoleUI();
     requestAnimationFrame(animate);
   </script>
 </body>
