@@ -452,8 +452,8 @@
     <div class="lobby-options">
       <label for="strategySelect">接続方式:
         <select id="strategySelect">
-          <option value="torrent">BitTorrent (標準)</option>
-          <option value="nostr">Nostr (代替1)</option>
+          <option value="nostr">Nostr (標準)</option>
+          <option value="torrent">BitTorrent (代替1)</option>
           <option value="mqtt">MQTT (代替2)</option>
         </select>
       </label>
@@ -750,8 +750,9 @@
     const flyingMeshes = new Map();
 
     // --- 2. ゲーム状態＆Trystero通信 ---
-    let trysteroSelfId = 'offline';
+    const mySessionId = 'p-' + Math.random().toString(36).slice(2, 10) + '-' + Date.now().toString(36);
     let remotePeerId = null;
+    let remoteSessionId = null;
     let activeRoom = null;
     let currentRoomName = '';
     let currentStrategy = 'offline';
@@ -811,7 +812,7 @@
       debugMeta.innerHTML =
         `方式: ${currentStrategy} / ルーム: ${currentRoomName || '-'}<br>` +
         `役割: ${roleLabel} / 最終受信: ${rxAgo}<br>` +
-        `Self: ${trysteroSelfId.slice(0, 10)} / Peer: ${remotePeerId ? remotePeerId.slice(0, 10) : 'なし'}`;
+        `Self: ${mySessionId.slice(0, 12)} / Peer: ${remotePeerId ? remotePeerId.slice(0, 10) : 'なし'}`;
     }
 
     function applyRoleUI() {
@@ -935,9 +936,9 @@
 
     // --- 4. ルーム接続＆ゲーム開始 ---
     const STRATEGY_URLS = {
-      torrent: 'https://esm.run/trystero',
-      nostr: 'https://esm.run/trystero/nostr',
-      mqtt: 'https://esm.run/trystero/mqtt'
+      nostr: 'https://esm.run/@trystero-p2p/nostr',
+      torrent: 'https://esm.run/@trystero-p2p/torrent',
+      mqtt: 'https://esm.run/@trystero-p2p/mqtt'
     };
 
     function disconnectRoom() {
@@ -949,6 +950,7 @@
       sendInput = null;
       sendWorld = null;
       remotePeerId = null;
+      remoteSessionId = null;
       peer.connected = false;
       peer.holding = false;
       player2Visual.group.visible = false;
@@ -977,16 +979,41 @@
       disconnectRoom();
       currentStrategy = 'offline';
       currentRoomName = 'offline';
-      trysteroSelfId = 'offline-1p';
       setStatusBadge('1人オフライン', 'offline');
       lobby.style.display = 'none';
       addLog('1人オフラインモードで開始');
       initShift();
     });
 
+    function resolveHostRole(peerId, peerSid) {
+      if (!peerSid || remoteSessionId === peerSid) return;
+      remotePeerId = peerId;
+      remoteSessionId = peerSid;
+      peer.connected = true;
+      player2Visual.group.visible = true;
+
+      // お互いが交換した mySessionId 同士で決定的にホスト判定（Trysteroバージョン非依存）
+      isHost = mySessionId < remoteSessionId;
+      applyRoleUI();
+
+      if (isHost) {
+        setStatusBadge('2P接続中 (Host: 1P)', 'connected');
+        addLog(`相方確定(${peerId.slice(0, 8)}) → 自分が Host(1P)`, 'ok');
+        broadcastWorld();
+      } else {
+        if (Math.hypot(me.x - (-1.5), me.z - 0.5) < 0.5) {
+          me.x = 2.0;
+          me.z = 0.5;
+        }
+        setStatusBadge('2P接続中 (Client: 2P)', 'connected');
+        addLog(`相方確定(${peerId.slice(0, 8)}) → 自分が Client(2P)`, 'ok');
+      }
+      updateDebugMeta();
+    }
+
     startBtn.addEventListener('click', async () => {
       const roomName = roomInput.value.trim() || 'sky-mansion';
-      const strategy = strategySelect.value || 'torrent';
+      const strategy = strategySelect.value || 'nostr';
       startBtn.disabled = true;
       startBtn.textContent = '接続中...';
       connNote.classList.remove('error');
@@ -997,18 +1024,18 @@
       currentStrategy = strategy;
 
       try {
-        const modUrl = STRATEGY_URLS[strategy] || STRATEGY_URLS.torrent;
+        const modUrl = STRATEGY_URLS[strategy] || STRATEGY_URLS.nostr;
         const trystero = await import(modUrl);
-        if (!trystero.joinRoom || !trystero.selfId) {
-          throw new Error('Trysteroモジュールの読み込みに失敗しました');
+        if (!trystero.joinRoom) {
+          throw new Error('joinRoomが見つかりませんでした');
         }
 
-        trysteroSelfId = trystero.selfId;
-        addLog(`Trystero(${strategy}) ロード完了 selfId=${trysteroSelfId.slice(0, 8)}`, 'ok');
+        addLog(`Trystero(${strategy}) ロード完了 sid=${mySessionId.slice(0, 10)}`, 'ok');
 
         const room = trystero.joinRoom({ appId: 'mansion-coop-3d-v1' }, roomName);
         activeRoom = room;
 
+        const [txHello, rxHello] = room.makeAction('hello');
         const [txState, rxState] = room.makeAction('pState');
         const [txInput, rxInput] = room.makeAction('pInput');
         const [txWorld, rxWorld] = room.makeAction('wSync');
@@ -1018,39 +1045,30 @@
         sendWorld = txWorld;
 
         room.onPeerJoin((id) => {
-          // 既に別の相方が接続済みなら3人目以降は無視
           if (remotePeerId && remotePeerId !== id) {
             addLog(`3人目の参加を検知(${id.slice(0, 8)})：2人制限のため無視`, 'error');
             return;
           }
-
           remotePeerId = id;
           peer.connected = true;
           player2Visual.group.visible = true;
-
-          // TrysteroのselfId同士で決定的にホスト判定（両端末で必ず一致する）
-          isHost = trysteroSelfId < remotePeerId;
-          applyRoleUI();
-
-          if (isHost) {
-            setStatusBadge('2P接続中 (Host: 1P)', 'connected');
-            addLog(`相方参加(${id.slice(0, 8)}) → 自分が Host(1P)`, 'ok');
-            broadcastWorld();
-          } else {
-            // Client側になった場合、1Pと初期位置が重ならないようずらす
-            if (Math.hypot(me.x - (-1.5), me.z - 0.5) < 0.5) {
-              me.x = 2.0;
-              me.z = 0.5;
-            }
-            setStatusBadge('2P接続中 (Client: 2P)', 'connected');
-            addLog(`相方参加(${id.slice(0, 8)}) → 自分が Client(2P)`, 'ok');
-          }
+          addLog(`相方が接続(${id.slice(0, 8)}) → ホスト判定を交換中...`, 'ok');
+          txHello({ sid: mySessionId }, id);
           updateDebugMeta();
+        });
+
+        rxHello((data, peerId) => {
+          if (remotePeerId && peerId !== remotePeerId) return;
+          lastRxTime = performance.now();
+          if (data && data.sid) {
+            resolveHostRole(peerId, data.sid);
+          }
         });
 
         room.onPeerLeave((id) => {
           if (id !== remotePeerId) return;
           remotePeerId = null;
+          remoteSessionId = null;
           peer.connected = false;
           peer.holding = false;
           player2Visual.group.visible = false;
@@ -1064,6 +1082,9 @@
         rxState((data, peerId) => {
           if (remotePeerId && peerId !== remotePeerId) return;
           lastRxTime = performance.now();
+          if (!remoteSessionId && data.sid) {
+            resolveHostRole(peerId, data.sid);
+          }
           peer.targetX = data.x;
           peer.targetZ = data.z;
           peer.rotY = data.rotY;
@@ -1433,6 +1454,7 @@
           netAcc = 0;
           if (sendState) {
             sendState({
+              sid: mySessionId,
               x: me.x,
               z: me.z,
               rotY: me.rotY,
